@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import contextlib
-import hashlib
 import hmac
+import secrets
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .collectors import build_collectors, collect_all, source_definitions
 from .config import get_settings
-from .db import SessionLocal, get_session, init_db
+from .db import SessionLocal, assert_schema_ready, get_session
 from .mcp_server import mcp
 from .models import Opportunity, OpportunityStatus, ResearchRun, RunStatus, Signal, Source
 from .repository import DomainError, add_feedback, published_run_query, seed_sources
@@ -25,6 +25,10 @@ from .schemas import FeedbackInput
 
 PACKAGE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=PACKAGE_DIR / "templates")
+
+# Regenerated on every process start; the feedback form only needs to prove the
+# request came from a page this instance rendered, never from a stored secret.
+CSRF_TOKEN = secrets.token_hex(32)
 
 
 class BearerTokenMiddleware:
@@ -35,13 +39,18 @@ class BearerTokenMiddleware:
         self.token = token.encode()
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
-        if scope["type"] == "http":
-            headers = {key.lower(): value for key, value in scope.get("headers", [])}
-            supplied = headers.get(b"authorization", b"")
-            expected = b"Bearer " + self.token
-            if not hmac.compare_digest(supplied, expected):
+        if scope["type"] == "lifespan":
+            await self.app(scope, receive, send)
+            return
+        headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        supplied = headers.get(b"authorization", b"")
+        expected = b"Bearer " + self.token
+        if not hmac.compare_digest(supplied, expected):
+            if scope["type"] == "http":
                 await JSONResponse({"detail": "Invalid or missing agent token"}, status_code=401)(scope, receive, send)
-                return
+            else:
+                await send({"type": "websocket.close", "code": 1008})
+            return
         await self.app(scope, receive, send)
 
 
@@ -51,7 +60,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     settings.assert_safe_production_config()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.backup_dir.mkdir(parents=True, exist_ok=True)
-    init_db()
+    assert_schema_ready()
     with SessionLocal() as session:
         seed_sources(session, source_definitions(settings))
     async with mcp.session_manager.run():
@@ -69,8 +78,7 @@ async def domain_error_handler(_request: Request, exc: DomainError) -> JSONRespo
 
 
 def template_context(request: Request, **items: Any) -> dict[str, Any]:
-    csrf_token = hashlib.sha256(get_settings().internal_token.encode()).hexdigest()
-    return {"request": request, "app_name": get_settings().app_name, "csrf_token": csrf_token, **items}
+    return {"request": request, "app_name": get_settings().app_name, "csrf_token": CSRF_TOKEN, **items}
 
 
 @app.get("/health")
@@ -129,8 +137,7 @@ def opportunity_feedback(
     csrf_token: str = Form(),
     session: Session = Depends(get_session),
 ) -> RedirectResponse:
-    expected = hashlib.sha256(get_settings().internal_token.encode()).hexdigest()
-    if not hmac.compare_digest(csrf_token, expected):
+    if not hmac.compare_digest(csrf_token, CSRF_TOKEN):
         raise HTTPException(403, "Invalid form token")
     add_feedback(session, opportunity_id, FeedbackInput(action=action, reason=reason or None, note=note or None))
     return RedirectResponse(f"/opportunities/{opportunity_id}", status_code=303)

@@ -57,3 +57,55 @@ async def test_mcp_contract_exposes_only_the_eight_planned_tools() -> None:
         "publish_run",
         "fail_run",
     }
+
+
+def test_csrf_token_is_random_rather_than_derived_from_the_internal_token(session) -> None:
+    import hashlib
+
+    from edgefinder.config import get_settings
+    from edgefinder.main import CSRF_TOKEN, opportunity_feedback
+    from edgefinder.models import Opportunity, OpportunityKind, OpportunityStatus, ResearchRun
+    legacy = hashlib.sha256(get_settings().internal_token.encode()).hexdigest()
+    assert CSRF_TOKEN != legacy
+
+    from datetime import datetime, timezone
+
+    run = ResearchRun(cutoff_at=datetime.now(timezone.utc))
+    session.add(run)
+    session.flush()
+    opportunity = Opportunity(
+        run_id=run.id, canonical_key="csrf-check", kind=OpportunityKind.WATCH, title="CSRF check candidate",
+        buyer="b", observed_pain="p", proposed_wedge="w", why_now="n", norway_advantage="a", global_path="g",
+        business_model="m", risks=[], validation_effort="v", next_experiment="e", score=10.0, confidence=10.0,
+        score_breakdown={},
+    )
+    session.add(opportunity)
+    session.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        opportunity_feedback(opportunity.id, action=OpportunityStatus.WATCH, reason=None, note=None, csrf_token=legacy, session=session)
+    assert exc_info.value.status_code == 403
+
+    response = opportunity_feedback(opportunity.id, action=OpportunityStatus.WATCH, reason=None, note=None, csrf_token=CSRF_TOKEN, session=session)
+    assert response.status_code == 303
+
+
+@pytest.mark.asyncio
+async def test_mcp_bearer_middleware_rejects_unauthenticated_websocket_scopes() -> None:
+    reached = False
+
+    async def protected_app(scope, receive, send):
+        nonlocal reached
+        reached = True
+
+    middleware = BearerTokenMiddleware(protected_app, "correct-token")
+    messages: list[dict] = []
+
+    async def receive():
+        return {"type": "websocket.connect"}
+
+    async def send(message):
+        messages.append(message)
+
+    await middleware({"type": "websocket", "path": "/", "headers": []}, receive, send)
+    assert not reached

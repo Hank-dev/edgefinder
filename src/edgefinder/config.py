@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     max_signals_per_run: int = Field(default=120, ge=10, le=500)
     max_candidates_per_run: int = Field(default=12, ge=1, le=30)
     max_deep_reviews: int = Field(default=8, ge=1, le=20)
+    max_run_age_hours: int = Field(default=48, ge=1, le=336)
     weekly_budget_eur: float = Field(default=7.0, gt=0, le=100)
     retention_backups: int = Field(default=30, ge=1, le=365)
     collection_user_agent: str = "Edgefinder/0.1 (+private research; contact configured by operator)"

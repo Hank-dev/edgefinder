@@ -44,7 +44,7 @@ class FeedCollector(BaseCollector):
         for entry in parsed.entries[:100]:
             url = entry.get("link", "")
             title = clean_text(entry.get("title", "Untitled"), limit=500)
-            excerpt = clean_text(entry.get("summary", entry.get("description", "")))
+            excerpt = clean_text(entry.get("summary", entry.get("description", ""))) or title
             identifier = str(entry.get("id") or url or hashlib.sha256(title.encode()).hexdigest())
             published = entry.get("published") or entry.get("updated")
             try:
@@ -118,7 +118,7 @@ class GitHubIssuesCollector(BaseCollector):
             headers["Authorization"] = f"Bearer {self.settings.github_token}"
         response = await client.get(
             "https://api.github.com/search/issues",
-            params={"q": f'is:issue created:>={since} ("manual workflow" OR "pain point" OR "feature request")', "sort": "comments", "order": "desc", "per_page": 50},
+            params={"q": f'is:issue created:>={since} ("manual workflow" OR "pain point" OR "feature request")', "advanced_search": "true", "sort": "comments", "order": "desc", "per_page": 50},
             headers=headers,
         )
         response.raise_for_status()
@@ -181,26 +181,48 @@ class BrregCollector(BaseCollector):
 
 
 class NavJobsCollector(BaseCollector):
+    """Reads the newest page of NAV's pam-stilling-feed (the public-feed API was retired May 2025)."""
+
     key = "nav-jobs"
 
     async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
         if not self.settings.nav_api_token:
-            raise RuntimeError("NAV_API_TOKEN is not configured; obtain public-feed access from NAV")
+            raise RuntimeError(
+                "NAV_API_TOKEN is not configured; fetch the experimental token from "
+                "https://pam-stilling-feed.nav.no/api/publicToken or request a private one from NAV"
+            )
         response = await client.get(
-            "https://arbeidsplassen.nav.no/public-feed/api/v1/ads",
-            params={"size": 100},
+            "https://pam-stilling-feed.nav.no/api/v1/feed",
+            params={"last": "true"},
             headers={"Authorization": f"Bearer {self.settings.nav_api_token}"},
         )
         response.raise_for_status()
-        payload = response.json()
-        items = payload.get("content", payload if isinstance(payload, list) else [])
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
         results = []
-        for item in items:
-            identifier = str(item.get("uuid") or item.get("id"))
-            title = item.get("title", "Ukjent stilling")
-            description = item.get("description") or item.get("jobtitle") or ""
-            url = item.get("link") or f"https://arbeidsplassen.nav.no/stillinger/stilling/{identifier}"
-            results.append(RawSignal(identifier, url, clean_text(title, limit=500), clean_text(description), self.timestamp(item.get("published")), "no", "norway", {"employer": item.get("employer"), "category": item.get("categoryList", [])}))
+        for item in response.json().get("items", []):
+            entry = item.get("_feed_entry") or {}
+            if entry.get("status") != "ACTIVE":
+                continue
+            observed = self.timestamp(entry.get("sistEndret") or item.get("date_modified"))
+            if observed < cutoff:
+                continue
+            identifier = str(entry.get("uuid") or item.get("id"))
+            title = clean_text(entry.get("title") or item.get("title") or "Ukjent stilling", limit=500)
+            employer = entry.get("businessName") or "ukjent arbeidsgiver"
+            municipality = entry.get("municipal") or "Norge"
+            excerpt = clean_text(f"{title} hos {employer} i {municipality}.")
+            results.append(
+                RawSignal(
+                    identifier,
+                    f"https://arbeidsplassen.nav.no/stillinger/stilling/{identifier}",
+                    title,
+                    excerpt,
+                    observed,
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": municipality},
+                )
+            )
         return results
 
 

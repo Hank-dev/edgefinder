@@ -4,7 +4,7 @@ Edgefinder is a private opportunity-intelligence service for a Hermes Agent VPS.
 
 ## Local development
 
-Python 3.12 is required.
+Python 3.12 or newer is required.
 
 ```bash
 python3.12 -m venv .venv
@@ -45,7 +45,11 @@ For Hermes, merge [`hermes/config.example.yaml`](hermes/config.example.yaml) int
 
 ## Operations
 
-Collection isolates source failures and shows them on the dashboard. NAV collection remains visibly unavailable until a public-feed token is configured. Optional GitHub authentication improves public API rate limits.
+Collection isolates source failures and shows them on the dashboard. NAV collection reads the newest page of [pam-stilling-feed](https://navikt.github.io/pam-stilling-feed/) and stays visibly unavailable until `NAV_API_TOKEN` is set; the experimental public token at <https://pam-stilling-feed.nav.no/api/publicToken> rotates irregularly, so request a private token from NAV for unattended use. Optional GitHub authentication improves public API rate limits.
+
+The database schema is owned by Alembic. Run `alembic upgrade head` after every deploy or checkout before starting the service; the app refuses to start against an empty database instead of creating tables itself.
+
+A crashed weekly research run expires automatically after `MAX_RUN_AGE_HOURS` (default 48), so the next scheduled run can start without manual cleanup.
 
 Create or inspect a backup:
 

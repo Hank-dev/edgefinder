@@ -36,8 +36,9 @@ def get_session() -> Generator[Session, None, None]:
         yield session
 
 
-def init_db() -> None:
-    from . import models  # noqa: F401
+def assert_schema_ready() -> None:
+    from sqlalchemy import inspect
 
-    Base.metadata.create_all(bind=engine)
+    if not inspect(engine).has_table("research_runs"):
+        raise RuntimeError("Database schema is missing. Run 'alembic upgrade head' before starting Edgefinder.")
 

@@ -10,7 +10,7 @@ import uvicorn
 
 from .collectors import build_collectors, collect_all, source_definitions
 from .config import get_settings
-from .db import SessionLocal, init_db
+from .db import SessionLocal, assert_schema_ready
 from .repository import seed_sources
 
 
@@ -18,7 +18,7 @@ def initialize() -> None:
     settings = get_settings()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.backup_dir.mkdir(parents=True, exist_ok=True)
-    init_db()
+    assert_schema_ready()
     with SessionLocal() as session:
         seed_sources(session, source_definitions(settings))
 
@@ -53,7 +53,7 @@ def main() -> None:
     subparsers.add_parser("collect")
     subparsers.add_parser("backup")
     serve = subparsers.add_parser("serve")
-    serve.add_argument("--host", default="0.0.0.0")
+    serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8787)
     args = parser.parse_args()
 

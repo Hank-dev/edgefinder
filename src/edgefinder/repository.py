@@ -48,7 +48,14 @@ def start_weekly_run(session: Session, settings: Settings, cutoff_at: datetime |
         select(ResearchRun).where(ResearchRun.status.in_([RunStatus.RUNNING, RunStatus.DRAFT]))
     )
     if active:
-        raise DomainError(f"Research run {active.id} is already active")
+        started = active.started_at if active.started_at.tzinfo else active.started_at.replace(tzinfo=timezone.utc)
+        if utcnow() - started > timedelta(hours=settings.max_run_age_hours):
+            active.status = RunStatus.FAILED
+            active.error = f"Run expired: still active after {settings.max_run_age_hours} hours"
+            active.completed_at = utcnow()
+            session.commit()
+        else:
+            raise DomainError(f"Research run {active.id} is already active")
     cutoff = cutoff_at or utcnow()
     if cutoff.tzinfo is None:
         cutoff = cutoff.replace(tzinfo=timezone.utc)
@@ -175,6 +182,8 @@ def save_candidate(session: Session, settings: Settings, run_id: str, payload: C
         missing = signal_ids - found
         if missing:
             raise DomainError(f"Unknown signal ids: {sorted(missing)}")
+    if payload.update_of_id and not session.get(Opportunity, payload.update_of_id):
+        raise DomainError(f"update_of_id {payload.update_of_id!r} does not reference a known opportunity")
     score = calculate_score(payload.score_breakdown)
     confidence = calculate_confidence([item.model_dump() for item in payload.evidence])
     opportunity = Opportunity(

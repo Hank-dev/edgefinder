@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -86,6 +86,18 @@ def test_only_one_run_can_be_active(session) -> None:
         start_weekly_run(session, settings)
 
 
+def test_stale_active_run_is_auto_failed_so_the_weekly_cadence_survives_a_crash(session) -> None:
+    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token", max_run_age_hours=48)
+    stale = start_weekly_run(session, settings)
+    stale.started_at = datetime.now(timezone.utc) - timedelta(hours=49)
+    session.commit()
+    fresh = start_weekly_run(session, settings)
+    session.refresh(stale)
+    assert fresh.id != stale.id
+    assert stale.status == RunStatus.FAILED
+    assert "expired" in (stale.error or "")
+
+
 def test_signal_and_deep_review_limits_are_enforced_in_storage(session, source) -> None:
     signals = [add_signal(session, source, f"limit-{index}") for index in range(12)]
     settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token", max_signals_per_run=10, max_deep_reviews=1)
@@ -103,3 +115,12 @@ def test_signal_and_deep_review_limits_are_enforced_in_storage(session, source) 
     save_review(session, settings, run.id, first.id, ReviewInput(role="skeptic", verdict="advance", reasoning="The first candidate receives the one permitted deep-review slot for this constrained run."))
     with pytest.raises(DomainError, match="Deep-review"):
         save_review(session, settings, run.id, second.id, ReviewInput(role="skeptic", verdict="advance", reasoning="The second candidate must be prevented from exceeding the configured deep-review limit."))
+
+
+def test_candidate_referencing_unknown_prior_opportunity_is_a_domain_error(session, source) -> None:
+    signal = add_signal(session, source, "update-ref")
+    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    run = start_weekly_run(session, settings)
+    payload = candidate(signal, None).model_copy(update={"update_of_id": "does-not-exist"})
+    with pytest.raises(DomainError, match="update_of_id"):
+        save_candidate(session, settings, run.id, payload)
