@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "edgefinder"
+version = "0.1.0"
+description = "Private opportunity intelligence for Hermes Agent"
+requires-python = ">=3.12"
+dependencies = [
+  "alembic>=1.14,<2",
+  "fastapi>=0.115,<1",
+  "feedparser>=6.0,<7",
+  "httpx>=0.28,<1",
+  "jinja2>=3.1,<4",
+  "mcp>=1.10,<2",
+  "pydantic-settings>=2.7,<3",
+  "python-multipart>=0.0.18,<1",
+  "sqlalchemy>=2.0,<3",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "respx>=0.22,<1",
+]
+
+[project.scripts]
+edgefinder = "edgefinder.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/edgefinder"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = [
+  "error",
+  "ignore:'asyncio.get_event_loop_policy' is deprecated:DeprecationWarning",
+  "ignore:'asyncio.set_event_loop_policy' is deprecated:DeprecationWarning",
+]

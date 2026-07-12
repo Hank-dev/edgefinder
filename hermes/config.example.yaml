@@ -1,0 +1,26 @@
+# Merge these keys into ~/.hermes/config.yaml. Keep the actual token in ~/.hermes/.env.
+skills:
+  external_dirs:
+    - /absolute/path/to/edgefinder/hermes/skills
+
+mcp_servers:
+  edgefinder:
+    url: "http://127.0.0.1:8787/mcp/"
+    headers:
+      Authorization: "Bearer ${EDGEFINDER_AGENT_TOKEN}"
+    enabled: true
+    timeout: 120
+    connect_timeout: 20
+    supports_parallel_tool_calls: false
+    tools:
+      include:
+        - start_weekly_run
+        - get_signal_batch
+        - search_signal_archive
+        - find_similar_opportunities
+        - save_candidate
+        - save_review
+        - publish_run
+        - fail_run
+      resources: false
+      prompts: false

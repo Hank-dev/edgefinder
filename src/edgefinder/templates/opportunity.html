@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ opportunity.title }} · Edgefinder{% endblock %}
+{% block content %}
+  <a class="back-link" href="/">← Weekly desk</a>
+  <section class="detail-hero">
+    <div><div class="detail-tags"><span class="tag">{{ opportunity.kind.value }}</span><span class="tag status">{{ opportunity.status.value|replace('_', ' ') }}</span></div><h1>{{ opportunity.title }}</h1><p>{{ opportunity.proposed_wedge }}</p></div>
+    <div class="score-block"><strong>{{ '%.0f'|format(opportunity.score) }}</strong><span>Opportunity score</span><small>{{ '%.0f'|format(opportunity.confidence) }} confidence</small></div>
+  </section>
+  <div class="detail-layout">
+    <article>
+      <section class="thesis-grid">
+        <div><small>Buyer</small><p>{{ opportunity.buyer }}</p></div>
+        <div><small>Observed pain</small><p>{{ opportunity.observed_pain }}</p></div>
+        <div><small>Why now</small><p>{{ opportunity.why_now }}</p></div>
+        <div><small>Business model</small><p>{{ opportunity.business_model }}</p></div>
+        <div><small>Norway advantage</small><p>{{ opportunity.norway_advantage }}</p></div>
+        <div><small>Global path</small><p>{{ opportunity.global_path }}</p></div>
+      </section>
+      <section class="content-section"><p class="eyebrow">Evidence ledger</p><h2>What this rests on</h2>
+        <div class="evidence-list">{% for evidence in opportunity.evidence %}<a href="{{ evidence.source_url }}" target="_blank" rel="noreferrer"><span class="stance {{ evidence.stance }}">{{ evidence.stance }}</span><p>{{ evidence.claim }}</p><small>{{ evidence.source_name }} ↗</small></a>{% endfor %}</div>
+      </section>
+      <section class="content-section"><p class="eyebrow">Agent review</p><h2>Debate, not consensus theatre</h2>
+        <div class="review-list">{% for review in opportunity.reviews %}<div><span>{{ review.role }}</span><b>{{ review.verdict }}</b><p>{{ review.reasoning }}</p><small>Score adjustment {{ '%+.1f'|format(review.score_delta) }}</small></div>{% else %}<p class="muted">No reviews attached.</p>{% endfor %}</div>
+      </section>
+    </article>
+    <aside>
+      <div class="action-card"><p class="eyebrow">48-hour test</p><h2>Cheapest next move</h2><p>{{ opportunity.next_experiment }}</p><small>Estimated effort</small><p>{{ opportunity.validation_effort }}</p></div>
+      <div class="action-card"><p class="eyebrow">Failure modes</p><ul>{% for risk in opportunity.risks %}<li>{{ risk }}</li>{% endfor %}</ul></div>
+      <form class="feedback-card" method="post" action="/opportunities/{{ opportunity.id }}/feedback">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <p class="eyebrow">Your verdict</p><div class="button-grid">
+          <button name="action" value="validate">Validate</button><button name="action" value="watch">Watch</button><button name="action" value="reject">Reject</button><button name="action" value="seen_before">Seen before</button>
+        </div><input name="reason" placeholder="Short reason"><textarea name="note" placeholder="What should the agents learn?"></textarea><button class="save-button" type="submit">Save feedback</button>
+      </form>
+    </aside>
+  </div>
+{% endblock %}
+

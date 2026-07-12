@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Archive · Edgefinder{% endblock %}
+{% block content %}
+  <section class="page-head"><div><p class="eyebrow">Long memory</p><h1>Opportunity archive</h1><p>Previously surfaced theses remain searchable so novelty has to be earned.</p></div>
+    <form class="search" method="get"><input name="q" value="{{ query }}" placeholder="Search pain, buyer, or wedge"><button>Search</button></form>
+  </section>
+  <div class="archive-list">
+    {% for item in opportunities %}
+      <a href="/opportunities/{{ item.id }}"><span class="score small">{{ '%.0f'|format(item.score) }}</span><span><b>{{ item.title }}</b><small>{{ item.buyer }}</small></span><span class="tag">{{ item.status.value|replace('_', ' ') }}</span><time>{{ item.created_at.strftime('%d %b %Y') }}</time></a>
+    {% else %}<div class="empty-card">No opportunities match this search.</div>{% endfor %}
+  </div>
+{% endblock %}
+

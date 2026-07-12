@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Weekly desk · Edgefinder{% endblock %}
+{% block content %}
+  <section class="hero">
+    <div>
+      <p class="eyebrow">Norway edge · global upside</p>
+      <h1>Signals worth leaning into.</h1>
+      <p class="hero-copy">Boring operational pain, unusual wedges, and an honest record of what the agents could not prove.</p>
+    </div>
+    {% if latest %}
+      <div class="run-stamp">
+        <small>Latest intelligence run</small>
+        <strong>{{ latest.published_at.strftime('%d %b %Y') }}</strong>
+        <span>{{ latest.model_name or 'Hermes default model' }} · €{{ '%.2f'|format(latest.estimated_cost_eur) }}</span>
+      </div>
+    {% endif %}
+  </section>
+
+  {% if latest %}
+    <section class="section-heading">
+      <div><p class="eyebrow">This week</p><h2>Ranked opportunities</h2></div>
+      <span>{{ opportunities|selectattr('kind.value', 'equalto', 'ranked')|list|length }} survived review</span>
+    </section>
+    <div class="opportunity-grid">
+      {% for item in opportunities if item.kind.value == 'ranked' %}
+        <a class="opportunity-card" href="/opportunities/{{ item.id }}">
+          <div class="card-top"><span class="tag">{{ item.status.value|replace('_', ' ') }}</span><span class="score">{{ '%.0f'|format(item.score) }}</span></div>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.proposed_wedge }}</p>
+          <div class="meter-row"><span>Confidence</span><div class="meter"><i style="width: {{ item.confidence }}%"></i></div><b>{{ '%.0f'|format(item.confidence) }}</b></div>
+          <div class="card-foot"><span>{{ item.evidence|length }} evidence items</span><span>Inspect thesis →</span></div>
+        </a>
+      {% else %}
+        <div class="empty-card">No ranked opportunity met the publication bar this week.</div>
+      {% endfor %}
+    </div>
+
+    <section class="section-heading compact"><div><p class="eyebrow">Weak signals</p><h2>Watchlist</h2></div></section>
+    <div class="watch-list">
+      {% for item in opportunities if item.kind.value == 'watch' %}
+        <a href="/opportunities/{{ item.id }}"><span>{{ item.title }}</span><small>Score {{ '%.0f'|format(item.score) }} · confidence {{ '%.0f'|format(item.confidence) }}</small></a>
+      {% else %}
+        <p class="muted">No watch signals were strong enough to retain.</p>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="empty-state"><span class="signal-icon">⌁</span><h2>Building the baseline</h2><p>The collector is gathering public signals. The first report appears after the Hermes dry-run is reviewed and published.</p></section>
+  {% endif %}
+
+  <section class="operations-grid">
+    <div class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">Collection</p><h2>Source health</h2></div><span>{{ source_counts|length }} adapters</span></div>
+      <div class="source-list">
+        {% for source, count in source_counts %}
+          <div><span class="health-dot {{ 'bad' if source.consecutive_failures else 'good' }}"></span><span><b>{{ source.name }}</b><small>{{ count }} signals{% if source.last_error %} · {{ source.last_error[:65] }}{% endif %}</small></span><time>{{ source.last_success_at.strftime('%d %b') if source.last_success_at else 'waiting' }}</time></div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-heading"><div><p class="eyebrow">Automation</p><h2>Recent runs</h2></div></div>
+      <div class="run-list">
+        {% for run in recent_runs %}
+          <div><span class="run-status {{ run.status.value }}">{{ run.status.value }}</span><span>{{ run.started_at.strftime('%d %b · %H:%M') }}</span><b>€{{ '%.2f'|format(run.estimated_cost_eur) }}</b></div>
+        {% else %}<p class="muted">No research runs yet.</p>{% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
