@@ -22,6 +22,13 @@ class CollectionSummary:
     failures: dict[str, str] = field(default_factory=dict)
 
 
+def _utc(value: datetime | None) -> datetime | None:
+    """SQLite persists wall time and drops the offset, so anything aware must become UTC before storage."""
+    if value is not None and value.tzinfo is not None:
+        return value.astimezone(timezone.utc)
+    return value
+
+
 def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
     title = clean_text(raw.title, limit=500)
     excerpt = clean_text(raw.excerpt, limit=2000)
@@ -37,11 +44,12 @@ def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
         existing.title = title
         existing.excerpt = excerpt
         existing.canonical_url = url
-        existing.observed_at = raw.observed_at
+        existing.observed_at = _utc(raw.observed_at)
         existing.fetched_at = datetime.now(timezone.utc)
         existing.content_hash = digest
         existing.language = raw.language
         existing.region = raw.region
+        existing.deadline_at = _utc(raw.deadline_at)
         existing.metadata_json = raw.metadata
         existing.suspicious_instructions = contains_suspicious_instructions(f"{title} {excerpt}")
         return "updated"
@@ -57,7 +65,8 @@ def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
             excerpt=excerpt,
             language=raw.language[:12],
             region=raw.region[:40],
-            observed_at=raw.observed_at,
+            observed_at=_utc(raw.observed_at),
+            deadline_at=_utc(raw.deadline_at),
             content_hash=digest,
             suspicious_instructions=contains_suspicious_instructions(f"{title} {excerpt}"),
             metadata_json=raw.metadata,

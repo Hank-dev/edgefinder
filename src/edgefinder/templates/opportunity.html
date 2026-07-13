@@ -4,7 +4,7 @@
   <a class="back-link" href="/">← Weekly desk</a>
   <section class="detail-hero">
     <div><div class="detail-tags"><span class="tag">{{ opportunity.kind.value }}</span><span class="tag status">{{ opportunity.status.value|replace('_', ' ') }}</span></div><h1>{{ opportunity.title }}</h1><p>{{ opportunity.proposed_wedge }}</p></div>
-    <div class="score-block"><strong>{{ '%.0f'|format(opportunity.score) }}</strong><span>Opportunity score</span><small>{{ '%.0f'|format(opportunity.confidence) }} confidence</small></div>
+    <div class="score-block"><strong>{{ '%.0f'|format(opportunity.score) }}</strong><span>Opportunity score</span><small>{{ '%.0f'|format(opportunity.confidence) }} confidence</small>{% if opportunity.deadline_at %}<small class="deadline">Deadline {{ opportunity.deadline_at.strftime('%d.%m.%Y') }}</small>{% endif %}</div>
   </section>
   <div class="detail-layout">
     <article>

@@ -77,6 +77,7 @@ class Signal(Base):
     region: Mapped[str] = mapped_column(String(40), default="global")
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     content_hash: Mapped[str] = mapped_column(String(64))
     suspicious_instructions: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -128,6 +129,7 @@ class Opportunity(Base):
     confidence: Mapped[float] = mapped_column(Float)
     score_breakdown: Mapped[dict[str, float]] = mapped_column(JSON)
     update_of_id: Mapped[str | None] = mapped_column(ForeignKey("opportunities.id", ondelete="SET NULL"))
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     run: Mapped[ResearchRun] = relationship(back_populates="opportunities")

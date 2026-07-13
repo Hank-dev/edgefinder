@@ -10,9 +10,10 @@ from .db import SessionLocal
 from .repository import (
     DomainError,
     fail_run as repo_fail_run,
-    feedback_context,
     find_similar_opportunities as repo_find_similar,
     get_signal_batch as repo_get_signal_batch,
+    get_signal_trends as repo_get_signal_trends,
+    operator_context as repo_operator_context,
     publish_run as repo_publish_run,
     save_candidate as repo_save_candidate,
     save_review as repo_save_review,
@@ -36,7 +37,7 @@ mcp = FastMCP(
 
 @mcp.tool()
 def start_weekly_run(cutoff_at: str | None = None) -> dict[str, Any]:
-    """Start one exclusive weekly research run and return its limits and operator feedback."""
+    """Start one exclusive weekly research run and return its limits, the operator profile, and feedback history."""
     settings = get_settings()
     cutoff = datetime.fromisoformat(cutoff_at.replace("Z", "+00:00")) if cutoff_at else None
     with SessionLocal() as session:
@@ -50,7 +51,7 @@ def start_weekly_run(cutoff_at: str | None = None) -> dict[str, Any]:
                 "deep_reviews": settings.max_deep_reviews,
                 "estimated_cost_eur": settings.weekly_budget_eur,
             },
-            "recent_operator_feedback": feedback_context(session),
+            "operator_context": repo_operator_context(session, settings),
         }
 
 
@@ -59,6 +60,13 @@ def get_signal_batch(run_id: str, lane: str = "all", limit: int = 25) -> list[di
     """Read a bounded batch of untrusted evidence for a run. Lanes: all, norway, labor, technical."""
     with SessionLocal() as session:
         return repo_get_signal_batch(session, run_id, get_settings(), lane=lane, limit=limit)
+
+
+@mcp.tool()
+def get_signal_trends(days: int = 14) -> dict[str, Any]:
+    """Aggregate collected signals: employers hiring repeatedly, industries registering, recurring pain terms, and upcoming deadlines. Free to call; does not consume the signal quota."""
+    with SessionLocal() as session:
+        return repo_get_signal_trends(session, days)
 
 
 @mcp.tool()

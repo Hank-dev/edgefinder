@@ -93,7 +93,7 @@ def dashboard(request: Request, session: Session = Depends(get_session)) -> HTML
     latest = session.scalar(published_run_query().limit(1))
     recent_runs = session.scalars(select(ResearchRun).order_by(desc(ResearchRun.started_at)).limit(8)).all()
     source_counts = session.execute(
-        select(Source, func.count(Signal.id)).outerjoin(Signal).group_by(Source.id).order_by(Source.name)
+        select(Source, func.count(Signal.id)).outerjoin(Signal).where(Source.enabled).group_by(Source.id).order_by(Source.name)
     ).all()
     opportunities = sorted(
         [item for item in latest.opportunities if item.status != OpportunityStatus.REJECT],

@@ -61,6 +61,7 @@ class CandidateInput(BaseModel):
     score_breakdown: dict[str, float]
     evidence: list[EvidenceInput] = Field(min_length=1, max_length=12)
     update_of_id: str | None = None
+    deadline_at: datetime | None = None
 
     @field_validator("score_breakdown")
     @classmethod

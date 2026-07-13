@@ -47,6 +47,14 @@ For Hermes, merge [`hermes/config.example.yaml`](hermes/config.example.yaml) int
 
 Collection isolates source failures and shows them on the dashboard. NAV collection reads the newest page of [pam-stilling-feed](https://navikt.github.io/pam-stilling-feed/) and stays visibly unavailable until `NAV_API_TOKEN` is set; the experimental public token at <https://pam-stilling-feed.nav.no/api/publicToken> rotates irregularly, so request a private token from NAV for unattended use. Optional GitHub authentication improves public API rate limits.
 
+Procurement is covered in two bands: TED carries Norwegian notices above the EEA thresholds, and the Doffin collector reads Doffin's public search backend for national notices below them (skipping anything marked `sentToTed`) — the contract band a small operator can realistically win. The `funding` kind covers open Horizon Europe and Digital Europe calls from the EU Funding & Tenders portal. Signals from tenders and calls carry `deadline_at`, which flows through batches into published opportunities and the dashboard, so time-limited opportunities are visible before their window closes.
+
+Reddit is deliberately not a core source: it rejects non-browser TLS fingerprints regardless of headers, so a reliable adapter needs Reddit OAuth credentials. Add other community feeds through `EXTRA_FEED_URLS`; feed collection retries once on HTTP 429. Sources removed from the configuration are disabled automatically on the next start instead of lingering red on the dashboard.
+
+Signal batches interleave sources round-robin, so one high-volume feed (company registrations, the Official Journal) cannot crowd out sparse, high-value feeds (job ads, tenders) within a run's signal budget. The `get_signal_trends` MCP tool aggregates the collection window — employers hiring repeatedly, industries registering companies, recurring pain terms, upcoming deadlines — without consuming that budget.
+
+Set `OPERATOR_PROFILE` to a short description of your skills, available hours, and capital. It is handed to the research agents with every run so they rank only opportunities you can actually execute, alongside a per-source track record of your validate/reject feedback.
+
 The database schema is owned by Alembic. Run `alembic upgrade head` after every deploy or checkout before starting the service; the app refuses to start against an empty database instead of creating tables itself.
 
 A crashed weekly research run expires automatically after `MAX_RUN_AGE_HOURS` (default 48), so the next scheduled run can start without manual cleanup.

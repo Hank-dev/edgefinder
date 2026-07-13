@@ -6,7 +6,7 @@ Keep schedules disabled until seven days of collection and one manual dry-run ha
 
 1. Add `EDGEFINDER_AGENT_TOKEN=<same value as AGENT_TOKEN>` and `EDGEFINDER_INTERNAL_TOKEN=<same value as INTERNAL_TOKEN>` to `~/.hermes/.env`.
 2. Merge `config.example.yaml` into `~/.hermes/config.yaml`, replacing the absolute skill path.
-3. Run `hermes mcp test edgefinder` and confirm exactly eight Edgefinder tools are visible.
+3. Run `hermes mcp test edgefinder` and confirm exactly nine Edgefinder tools are visible.
 4. Start or restart the gateway with `hermes gateway install --system` as appropriate for the VPS.
 
 ## Jobs to create after the dry-run

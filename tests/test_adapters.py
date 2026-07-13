@@ -8,6 +8,8 @@ import pytest
 
 from edgefinder.collectors.adapters import (
     BrregCollector,
+    DoffinCollector,
+    EuFundingCollector,
     FeedCollector,
     GitHubIssuesCollector,
     HackerNewsCollector,
@@ -33,8 +35,10 @@ async def test_each_public_source_adapter_normalizes_recorded_fixtures() -> None
         if host == "api.github.com":
             assert request.headers["Authorization"] == "Bearer github-public-token"
             assert request.url.params["advanced_search"] == "true"
+            assert request.url.params["q"].count(" OR ") >= 4
             return httpx.Response(200, json={"items": [{"id": 20, "html_url": "https://github.com/acme/repo/issues/20", "title": "Feature request: reconcile imports", "body": "Our team manually compares every imported row.", "created_at": "2026-07-08T08:00:00Z", "repository_url": "https://api.github.com/repos/acme/repo", "comments": 7}]})
         if host == "data.brreg.no":
+            assert request.url.params["organisasjonsform"] == "AS,ENK,ANS,DA"
             return httpx.Response(200, json={"_embedded": {"enheter": [{"organisasjonsnummer": "999999999", "navn": "Norsk Drift AS", "registreringsdatoEnhetsregisteret": "2026-07-08", "naeringskode1": {"beskrivelse": "Tekniske tjenester"}, "forretningsadresse": {"kommune": "OSLO"}}]}})
         if host == "pam-stilling-feed.nav.no":
             assert request.headers["Authorization"] == "Bearer nav-public-token"
@@ -49,7 +53,7 @@ async def test_each_public_source_adapter_normalizes_recorded_fixtures() -> None
         if host == "api.ted.europa.eu":
             body = json.loads(request.content)
             assert body["paginationMode"] == "PAGE_NUMBER"
-            return httpx.Response(200, json={"notices": [{"publication-number": "123456-2026", "notice-title": "Digital saksflyt", "buyer-name": "Norsk kommune", "publication-date": "2026-07-08"}]})
+            return httpx.Response(200, json={"notices": [{"publication-number": "123456-2026", "notice-title": "Digital saksflyt", "buyer-name": "Norsk kommune", "publication-date": "2026-07-08", "deadline-receipt-tender-date-lot": ["2026-08-17Z"]}]})
         raise AssertionError(f"Unhandled fixture URL {request.url}")
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
@@ -70,6 +74,80 @@ async def test_each_public_source_adapter_normalizes_recorded_fixtures() -> None
     assert results[5][0].region == "norway"
     assert "Eksempel AS" in results[5][0].excerpt
     assert results[6][0].metadata["buyer"] == "Norsk kommune"
+    assert results[6][0].deadline_at == datetime(2026, 8, 17, tzinfo=timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_doffin_adapter_keeps_only_national_notices_ted_never_carries() -> None:
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "api.doffin.no"
+        body = json.loads(request.content)
+        assert body["sortBy"] == "PUBLICATION_DATE_DESC"
+        assert body["facets"]["status"]["checkedItems"] == ["ACTIVE"]
+        assert body["facets"]["type"]["checkedItems"] == ["COMPETITION"]
+        assert body["facets"]["publicationDate"]["from"]
+        return httpx.Response(200, json={"numHitsTotal": 2, "hits": [
+            {"id": "2026-900001", "heading": "Rammeavtale vintervedlikehold", "description": "Kommunen trenger brøyting av kommunale veier.", "buyer": [{"name": "Eksempel kommune", "organizationId": "999888777"}], "status": "ACTIVE", "type": "ANNOUNCEMENT_OF_COMPETITION", "sentToTed": False, "issueDate": "2026-07-10T09:00:00Z", "publicationDate": "2026-07-10", "deadline": "2026-08-19T10:00:00Z", "estimatedValue": None, "placeOfPerformance": ["Innlandet"]},
+            {"id": "2026-900002", "heading": "Stor EU-kontrakt", "description": "Denne finnes også på TED.", "buyer": [{"name": "Stor etat"}], "status": "ACTIVE", "type": "ANNOUNCEMENT_OF_COMPETITION", "sentToTed": True, "issueDate": "2026-07-10T09:00:00Z", "publicationDate": "2026-07-10", "deadline": "2026-08-19T10:00:00Z"},
+        ]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await DoffinCollector(settings).collect(client)
+    assert len(results) == 1
+    signal = results[0]
+    assert signal.external_id == "2026-900001"
+    assert signal.url == "https://www.doffin.no/notices/2026-900001"
+    assert signal.region == "norway"
+    assert signal.language == "no"
+    assert signal.deadline_at == datetime(2026, 8, 19, 10, 0, tzinfo=timezone.utc)
+    assert signal.metadata["buyer"] == "Eksempel kommune"
+
+
+@pytest.mark.asyncio
+async def test_eu_funding_adapter_keeps_open_calls_with_future_deadlines() -> None:
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+    future = "2026-10-01T15:00:00.000+0000"
+    past = "2026-06-01T15:00:00.000+0000"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "api.tech.ec.europa.eu"
+        assert request.url.params["apiKey"] == "SEDIA"
+        return httpx.Response(200, json={"results": [
+            {"reference": "ref-1", "summary": "Pilot support for SMB automation", "metadata": {"identifier": ["HORIZON-CL4-2026-DATA-01"], "title": ["Support for trustworthy automation"], "deadlineDate": [future], "startDate": ["2026-07-08T12:00:00.000+0000"], "frameworkProgramme": ["43108390"], "callIdentifier": ["HORIZON-CL4-2026"], "status": ["31094502"]}},
+            {"reference": "ref-2", "summary": "Closed call", "metadata": {"identifier": ["HORIZON-OLD-2026"], "title": ["Expired call"], "deadlineDate": [past], "startDate": ["2026-01-08T12:00:00.000+0000"], "frameworkProgramme": ["43108390"], "status": ["31094502"]}},
+        ]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await EuFundingCollector(settings).collect(client)
+    assert len(results) == 1
+    signal = results[0]
+    assert signal.external_id == "HORIZON-CL4-2026-DATA-01"
+    assert "topic-details/horizon-cl4-2026-data-01" in signal.url
+    assert signal.deadline_at == datetime(2026, 10, 1, 15, 0, tzinfo=timezone.utc)
+    assert signal.region == "europe"
+    assert signal.metadata["call"] == "HORIZON-CL4-2026"
+
+
+@pytest.mark.asyncio
+async def test_nav_naive_timestamps_are_read_as_oslo_wall_time_not_utc() -> None:
+    from zoneinfo import ZoneInfo
+
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token", nav_api_token="nav-public-token")
+    oslo = ZoneInfo("Europe/Oslo")
+    naive = (datetime.now(oslo) - timedelta(hours=3)).replace(tzinfo=None)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"items": [
+            {"id": "nav-9", "title": "Stilling", "_feed_entry": {"uuid": "nav-9", "status": "ACTIVE", "title": "Utvikler", "businessName": "Fersk AS", "municipal": "OSLO", "sistEndret": naive.isoformat()}},
+        ]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await NavJobsCollector(settings).collect(client)
+    assert len(results) == 1
+    assert results[0].observed_at == naive.replace(tzinfo=oslo)
+    assert results[0].observed_at <= datetime.now(timezone.utc)
 
 
 @pytest.mark.asyncio
@@ -78,6 +156,49 @@ async def test_nav_adapter_fails_closed_without_public_feed_token() -> None:
     async with httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(500))) as client:
         with pytest.raises(RuntimeError, match="NAV_API_TOKEN"):
             await NavJobsCollector(settings).collect(client)
+
+
+@pytest.mark.asyncio
+async def test_collection_stores_aware_timestamps_as_utc_wall_time(session, source) -> None:
+    from zoneinfo import ZoneInfo
+
+    from edgefinder.collectors.base import BaseCollector, RawSignal
+    from edgefinder.collectors.service import collect_all
+    from edgefinder.models import Signal
+    from sqlalchemy import select
+
+    class StubCollector(BaseCollector):
+        key = "fixture-source"
+
+        async def collect(self, client):
+            aware = datetime(2026, 7, 13, 13, 34, tzinfo=ZoneInfo("Europe/Oslo"))
+            return [RawSignal("stub-1", "https://example.com/stub", "Stub title", "Stub excerpt for storage.", aware, deadline_at=aware)]
+
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+    await collect_all(session, settings, [StubCollector(settings)])
+    session.expire_all()
+    stored = session.scalar(select(Signal).where(Signal.external_id == "stub-1"))
+    assert stored.observed_at.replace(tzinfo=None) == datetime(2026, 7, 13, 11, 34)
+    assert stored.deadline_at.replace(tzinfo=None) == datetime(2026, 7, 13, 11, 34)
+
+
+@pytest.mark.asyncio
+async def test_feed_collector_retries_once_when_rate_limited() -> None:
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+    rss = b'''<?xml version="1.0"?><rss version="2.0"><channel><title>Sub</title><item><guid>p-1</guid><title>Anyone else drowning in invoices?</title><link>https://reddit.example/p1</link><description>Manual invoicing again.</description><pubDate>Sun, 12 Jul 2026 08:00:00 GMT</pubDate></item></channel></rss>'''
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return httpx.Response(200, content=rss)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await FeedCollector(settings, key="reddit", url="https://reddit.example/new/.rss", region="global", language="en").collect(client)
+    assert attempts == 2
+    assert len(results) == 1
 
 
 @pytest.mark.asyncio

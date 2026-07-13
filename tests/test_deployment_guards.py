@@ -54,3 +54,8 @@ def test_sources_point_at_live_apis() -> None:
     definitions = {item["key"]: item for item in source_definitions(Settings(agent_token="test-agent-token", internal_token="test-internal-token"))}
     assert definitions["nav-jobs"]["base_url"] == "https://pam-stilling-feed.nav.no"
     assert definitions["eurlex"]["base_url"] == "https://eur-lex.europa.eu/EN/display-feed.rss?rssId=222"
+    assert definitions["doffin"]["base_url"] == "https://api.doffin.no"
+    assert definitions["doffin"]["kind"] == "procurement"
+    assert definitions["eu-funding"]["kind"] == "funding"
+    # Reddit blocks non-browser TLS fingerprints; it must not ship as a core source until an OAuth adapter exists.
+    assert not any(str(item["base_url"]).find("reddit") >= 0 for item in definitions.values())

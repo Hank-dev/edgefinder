@@ -16,6 +16,7 @@ mcp_servers:
       include:
         - start_weekly_run
         - get_signal_batch
+        - get_signal_trends
         - search_signal_archive
         - find_similar_opportunities
         - save_candidate

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     weekly_budget_eur: float = Field(default=7.0, gt=0, le=100)
     retention_backups: int = Field(default=30, ge=1, le=365)
     collection_user_agent: str = "Edgefinder/0.1 (+private research; contact configured by operator)"
+    operator_profile: str = Field(default="", max_length=2000)
     request_timeout_seconds: float = Field(default=20.0, ge=2, le=120)
     github_token: str | None = None
     nav_api_token: str | None = None
