@@ -41,6 +41,8 @@ def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
     if existing:
         if existing.content_hash == digest:
             existing.fetched_at = datetime.now(timezone.utc)
+            if fingerprint and not existing.fingerprint:
+                existing.fingerprint = fingerprint
             return "skipped"
         existing.title = title
         existing.excerpt = excerpt

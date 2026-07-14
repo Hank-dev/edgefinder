@@ -83,3 +83,36 @@ def test_store_signal_fingerprints_job_sources_only(session) -> None:
     assert job_row.fingerprint is not None
     assert other_row.fingerprint is None
 
+
+def test_store_signal_fingerprints_update_and_skip_paths(session) -> None:
+    from datetime import datetime, timezone
+
+    from edgefinder.collectors.base import RawSignal
+    from edgefinder.collectors.service import _store_signal
+    from edgefinder.models import Signal, Source
+
+    jobs_source = Source(key="jobs-src2", name="Jobs2", kind="jobs", region="norway", base_url="https://jobs2.example", quality=0.9)
+    session.add(jobs_source)
+    session.commit()
+
+    raw = RawSignal("j1", "https://jobs2.example/1", "Data Engineer", "Data Engineer hos Eksempel AS i Oslo.", datetime.now(timezone.utc), "no", "norway", {"employer": "Eksempel AS"})
+    assert _store_signal(session, jobs_source, raw) == "inserted"
+    session.commit()
+    row = session.query(Signal).filter(Signal.external_id == "j1").one()
+    original = row.fingerprint
+    assert original is not None
+
+    # Skip path backfills a missing fingerprint on unchanged content
+    row.fingerprint = None
+    session.commit()
+    assert _store_signal(session, jobs_source, raw) == "skipped"
+    session.commit()
+    assert session.query(Signal).filter(Signal.external_id == "j1").one().fingerprint == original
+
+    # Update path recomputes when content changes
+    changed = RawSignal("j1", "https://jobs2.example/1", "Senior Data Engineer", "Senior Data Engineer hos Eksempel AS i Oslo.", datetime.now(timezone.utc), "no", "norway", {"employer": "Eksempel AS"})
+    assert _store_signal(session, jobs_source, changed) == "updated"
+    session.commit()
+    updated = session.query(Signal).filter(Signal.external_id == "j1").one().fingerprint
+    assert updated is not None and updated != original
+
