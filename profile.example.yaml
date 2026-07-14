@@ -1,0 +1,9 @@
+# profile.example.yaml — copy to profile.yaml and edit. profile.yaml is gitignored.
+# Skills use the canonical names or synonyms from src/edgefinder/jobs/taxonomy.py.
+skills_have: [python, sql, excel, power bi]
+skills_learning: [dbt, azure]
+target_roles: [data engineer, analyst, business intelligence, konsulent]
+locations: {Trondheim: 1.0, Oslo: 0.8, remote: 0.9}
+default_location_weight: 0.5
+seniority: {internship: 1.0, graduate: 1.0, junior: 0.9, senior: 0.3}
+unspecified_seniority_weight: 0.7

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     extra_feed_urls: str = ""
     data_dir: Path = Path("./data")
     backup_dir: Path = Path("./backups")
+    jobs_profile_path: Path = Path("./profile.yaml")
 
     @property
     def feeds(self) -> list[str]:
