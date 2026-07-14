@@ -37,6 +37,7 @@ class OpportunityStatus(str, enum.Enum):
     WATCH = "watch"
     REJECT = "reject"
     SEEN_BEFORE = "seen_before"
+    SUPERSEDED = "superseded"
 
 
 class Source(Base):

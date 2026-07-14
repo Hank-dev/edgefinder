@@ -5,22 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
   </head>
   <body>
     <header class="site-header">
       <a class="brand" href="/">
         <span class="brand-mark">E</span>
-        <span><strong>Edgefinder</strong><small>Opportunity intelligence</small></span>
+        <span>Edgefinder</span>
       </a>
       <nav>
-        <a href="/">Weekly desk</a>
+        <a href="/">Desk</a>
+        <a href="/rankings">Rankings</a>
+        <a href="/talent">Talent</a>
         <a href="/archive">Archive</a>
       </nav>
-      <span class="private-pill">Tailnet private</span>
+      <span class="private-pill">Private</span>
     </header>
     <main>{% block content %}{% endblock %}</main>
     <footer>Research intelligence only · no outreach or external actions</footer>
   </body>
 </html>
-

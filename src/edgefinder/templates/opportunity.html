@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ opportunity.title }} · Edgefinder{% endblock %}
 {% block content %}
-  <a class="back-link" href="/">← Weekly desk</a>
+  <a class="back-link" href="/">← Desk</a>
   <section class="detail-hero">
-    <div><div class="detail-tags"><span class="tag">{{ opportunity.kind.value }}</span><span class="tag status">{{ opportunity.status.value|replace('_', ' ') }}</span></div><h1>{{ opportunity.title }}</h1><p>{{ opportunity.proposed_wedge }}</p></div>
-    <div class="score-block"><strong>{{ '%.0f'|format(opportunity.score) }}</strong><span>Opportunity score</span><small>{{ '%.0f'|format(opportunity.confidence) }} confidence</small>{% if opportunity.deadline_at %}<small class="deadline">Deadline {{ opportunity.deadline_at.strftime('%d.%m.%Y') }}</small>{% endif %}</div>
+    <div><div class="detail-tags"><span class="tag">{{ opportunity.kind.value }}</span><span class="tag">{{ opportunity.status.value|replace('_', ' ') }}</span></div><h1>{{ opportunity.title }}</h1><p>{{ opportunity.proposed_wedge }}</p></div>
+    <div class="score-block"><strong>{{ '%.0f'|format(opportunity.score) }}</strong><span>Score</span><small>{{ '%.0f'|format(opportunity.confidence) }} confidence</small>{% if opportunity.deadline_at %}<small>Deadline {{ opportunity.deadline_at.strftime('%d.%m.%Y') }}</small>{% endif %}</div>
   </section>
   <div class="detail-layout">
     <article>
@@ -19,7 +19,7 @@
       <section class="content-section"><p class="eyebrow">Evidence ledger</p><h2>What this rests on</h2>
         <div class="evidence-list">{% for evidence in opportunity.evidence %}<a href="{{ evidence.source_url }}" target="_blank" rel="noreferrer"><span class="stance {{ evidence.stance }}">{{ evidence.stance }}</span><p>{{ evidence.claim }}</p><small>{{ evidence.source_name }} ↗</small></a>{% endfor %}</div>
       </section>
-      <section class="content-section"><p class="eyebrow">Agent review</p><h2>Debate, not consensus theatre</h2>
+      <section class="content-section"><p class="eyebrow">Agent review</p><h2>Debate, not consensus</h2>
         <div class="review-list">{% for review in opportunity.reviews %}<div><span>{{ review.role }}</span><b>{{ review.verdict }}</b><p>{{ review.reasoning }}</p><small>Score adjustment {{ '%+.1f'|format(review.score_delta) }}</small></div>{% else %}<p class="muted">No reviews attached.</p>{% endfor %}</div>
       </section>
     </article>
@@ -35,4 +35,3 @@
     </aside>
   </div>
 {% endblock %}
-

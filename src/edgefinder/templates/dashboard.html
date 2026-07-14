@@ -28,7 +28,7 @@
           <h3>{{ item.title }}</h3>
           <p>{{ item.proposed_wedge }}</p>
           <div class="meter-row"><span>Confidence</span><div class="meter"><i style="width: {{ item.confidence }}%"></i></div><b>{{ '%.0f'|format(item.confidence) }}</b></div>
-          <div class="card-foot"><span>{{ item.evidence|length }} evidence items{% if item.deadline_at %} · deadline {{ item.deadline_at.strftime('%d.%m') }}{% endif %}</span><span>Inspect thesis →</span></div>
+          <div class="card-foot"><span>{{ item.evidence|length }} evidence items{% if item.deadline_at %} · deadline {{ item.deadline_at.strftime('%d.%m') }}{% endif %}</span><span>Inspect →</span></div>
         </a>
       {% else %}
         <div class="empty-card">No ranked opportunity met the publication bar this week.</div>
@@ -40,7 +40,7 @@
       {% for item in opportunities if item.kind.value == 'watch' %}
         <a href="/opportunities/{{ item.id }}"><span>{{ item.title }}</span><small>Score {{ '%.0f'|format(item.score) }} · confidence {{ '%.0f'|format(item.confidence) }}</small></a>
       {% else %}
-        <p class="muted">No watch signals were strong enough to retain.</p>
+        <p class="muted" style="padding:24px">No watch signals were strong enough to retain.</p>
       {% endfor %}
     </div>
   {% else %}
@@ -66,4 +66,3 @@
     </div>
   </section>
 {% endblock %}
-
