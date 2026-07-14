@@ -1,6 +1,6 @@
 # Edgefinder
 
-Edgefinder is a private opportunity-intelligence service for a Hermes Agent VPS. It collects public signals, preserves evidence and feedback, and exposes a constrained MCP surface for weekly multi-agent research. It never performs outreach or other external actions.
+Edgefinder is a private opportunity-intelligence service for a Hermes Agent VPS. It collects public signals, preserves evidence and feedback, and exposes a constrained MCP surface for weekly multi-agent research. It performs no external actions except an opt-in push of new job matches to the operator's own Telegram chat.
 
 ## Local development
 
@@ -45,15 +45,23 @@ For Hermes, merge [`hermes/config.example.yaml`](hermes/config.example.yaml) int
 
 ## Operations
 
-Collection isolates source failures and shows them on the dashboard. NAV collection reads the newest page of [pam-stilling-feed](https://navikt.github.io/pam-stilling-feed/) and stays visibly unavailable until `NAV_API_TOKEN` is set; the experimental public token at <https://pam-stilling-feed.nav.no/api/publicToken> rotates irregularly, so request a private token from NAV for unattended use. Optional GitHub authentication improves public API rate limits.
+Collection isolates source failures and shows them on the dashboard. NAV collection reads the newest page of [pam-stilling-feed](https://navikt.github.io/pam-stilling-feed/) and stays visibly unavailable until `NAV_API_TOKEN` is set; the experimental public token at <https://pam-stilling-feed.nav.no/api/publicToken> rotates irregularly, so request a private token from NAV for unattended use. The feed only exposes forward pagination (`next_url`/`next_id`) from its oldest page toward the newest; the `?last=true` page returned by the collector has no backward link (no `previous_url`/`prev_id`) back toward older pages, so the collector stays single-page by design. This means NAV coverage of the 7-day window depends on collection running at least daily — running the collector less frequently than that risks missing postings that both appeared and moved off the newest page between runs. Optional GitHub authentication improves public API rate limits.
+
+Abakus (NTNU's data/komtek linjeforening) job listings are collected via its public `lego.abakus.no` API; the sibling Online career board was evaluated but dropped because its documented API host (`old.online.ntnu.no`) no longer resolves and the redesigned `online.ntnu.no` site exposes no equivalent public JSON endpoint.
+
+kode24's Norwegian developer job board is collected by scraping the server-rendered listing at `https://kodejobb.no/stillinger` — `kode24.no/jobb` now redirects there (through `kodejobb.no`) rather than hosting listings itself, and the destination site exposes no JSON API, so the collector regex-scrapes the same job cards a visitor sees.
 
 Procurement is covered in two bands: TED carries Norwegian notices above the EEA thresholds, and the Doffin collector reads Doffin's public search backend for national notices below them (skipping anything marked `sentToTed`) — the contract band a small operator can realistically win. The `funding` kind covers open Horizon Europe and Digital Europe calls from the EU Funding & Tenders portal. Signals from tenders and calls carry `deadline_at`, which flows through batches into published opportunities and the dashboard, so time-limited opportunities are visible before their window closes.
 
 Reddit is deliberately not a core source: it rejects non-browser TLS fingerprints regardless of headers, so a reliable adapter needs Reddit OAuth credentials. Add other community feeds through `EXTRA_FEED_URLS`; feed collection retries once on HTTP 429. Sources removed from the configuration are disabled automatically on the next start instead of lingering red on the dashboard.
 
+FINN.no job listings were evaluated and are deliberately not collected: its `robots.txt` opens with an explicit notice that crawling is prohibited without FINN's written permission ("Bruk av automatiserte tjenester (roboter, spidere, indeksering m.m.) ... er ikke tillatt uten eksplisitt samtykke fra FINN.no"), and it disallows known job-aggregator bots (`IndeedBot`, `Jobblebot`, `neuvoo`) site-wide, showing clear intent against unattended job-listing collection even though the generic `User-agent: *` group has no path-level rule blocking the search API a collector would call. Given that stated intent, FINN.no stays out of the source registry rather than shipping under a technicality.
+
 Signal batches interleave sources round-robin, so one high-volume feed (company registrations, the Official Journal) cannot crowd out sparse, high-value feeds (job ads, tenders) within a run's signal budget. The `get_signal_trends` MCP tool aggregates the collection window — employers hiring repeatedly, industries registering companies, recurring pain terms, upcoming deadlines — without consuming that budget.
 
 Set `OPERATOR_PROFILE` to a short description of your skills, available hours, and capital. It is handed to the research agents with every run so they rank only opportunities you can actually execute, alongside a per-source track record of your validate/reject feedback.
+
+The talent feed ranks jobs against `profile.yaml` (copy from `profile.example.yaml`), dismissals persist across boards via fingerprints, and `edgefinder digest --hours 24` sends new jobs scoring ≥ `DIGEST_MIN_RELEVANCE` to Telegram. With no profile configured, every job scores 50 and the digest warns and sends nothing.
 
 The database schema is owned by Alembic. Run `alembic upgrade head` after every deploy or checkout before starting the service; the app refuses to start against an empty database instead of creating tables itself.
 

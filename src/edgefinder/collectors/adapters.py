@@ -337,6 +337,47 @@ class BindeleddetCollector(BaseCollector):
         return results
 
 
+class AbakusCollector(BaseCollector):
+    """Reads Abakus (NTNU data/komtek linjeforening) job listings from its public v1 API.
+
+    Note: the sibling Online (NTNU informatics linjeforening) board was evaluated for this
+    lane too, but its documented API host `old.online.ntnu.no` no longer resolves (confirmed
+    NXDOMAIN against 8.8.8.8 on 2026-07-14) and the redesigned `online.ntnu.no` site exposes
+    no equivalent public JSON endpoint, so no Online collector was implemented. See README.
+    """
+
+    key = "abakus"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get("https://lego.abakus.no/api/v1/joblistings/")
+        response.raise_for_status()
+        now = datetime.now(timezone.utc)
+        results: list[RawSignal] = []
+        for item in response.json().get("results", []):
+            deadline = self.timestamp(item.get("deadline")) if item.get("deadline") else None
+            if deadline and deadline < now:
+                continue
+            identifier = str(item.get("id", ""))
+            title = clean_text(item.get("title") or "Ukjent stilling", limit=500)
+            employer = clean_text(((item.get("company") or {}).get("name")) or "ukjent arbeidsgiver", limit=300)
+            towns = [str(place.get("town", "")) for place in item.get("workplaces") or [] if place.get("town")]
+            municipality = clean_text(", ".join(towns) or "Norge", limit=200)
+            results.append(
+                RawSignal(
+                    identifier,
+                    f"https://abakus.no/joblistings/{identifier}",
+                    title,
+                    clean_text(f"{title} hos {employer} i {municipality}."),
+                    now,
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": municipality, "source_board": "Abakus", "status": "ACTIVE", "job_type": item.get("jobType")},
+                    deadline_at=deadline,
+                )
+            )
+        return results
+
+
 class StartupLabCollector(BaseCollector):
     """Reads current startup jobs from STARTUPLAB's public Getro-powered board."""
 
@@ -413,6 +454,53 @@ class TheHubCollector(BaseCollector):
                 excerpt = clean_text(f"{title}. {employer}. {location}. Norway startup job listed on The Hub.")
                 results.append(RawSignal(identifier, url, title, excerpt, datetime.now(timezone.utc), "en", "norway", {"employer": employer, "municipality": location, "source_board": "The Hub", "status": "ACTIVE", "job_type": job_type}))
         return results[:300]
+
+
+class Kode24Collector(BaseCollector):
+    """Reads kode24's Norwegian developer-job board (kodejobb.no) from its server-rendered listing page.
+
+    https://www.kode24.no/jobb 302-redirects to https://www.kodejobb.no, which 308-redirects
+    to https://kodejobb.no/ -- a Next.js app whose homepage only samples a handful of jobs.
+    The full board (server-rendered, no JSON endpoint reachable) lives at /stillinger.
+    """
+
+    key = "kode24"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get("https://kodejobb.no/stillinger")
+        response.raise_for_status()
+        results: list[RawSignal] = []
+        seen: set[str] = set()
+        pattern = re.compile(
+            r'href="(?P<path>/stillinger/(?P<slug>[a-z0-9-]+)/(?P<id>[0-9a-f-]{36}))"[^>]*>.*?'
+            r'class="job-title-from-customer[^"]*">(?P<title>.*?)</div>.*?'
+            r'class="job-company-name[^"]*">(?P<employer>.*?)</div>.*?'
+            r'class="job-location[^"]*">.*?</svg></span>(?P<location>[^<]*)</span>',
+            re.I | re.S,
+        )
+        for match in pattern.finditer(response.text):
+            identifier = match.group("id")
+            if identifier in seen:
+                continue
+            seen.add(identifier)
+            title = clean_text(match.group("title"), limit=500)
+            employer = clean_text(match.group("employer"), limit=300) or "ukjent arbeidsgiver"
+            municipality = clean_text(match.group("location"), limit=200) or "Norge"
+            if not title:
+                continue
+            results.append(
+                RawSignal(
+                    identifier,
+                    f"https://kodejobb.no{match.group('path')}",
+                    title,
+                    clean_text(f"{title} hos {employer} i {municipality}. Utvikler-stilling fra kode24."),
+                    datetime.now(timezone.utc),
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": municipality, "source_board": "kode24", "status": "ACTIVE"},
+                )
+            )
+        return results[:200]
 
 
 class DoffinCollector(BaseCollector):

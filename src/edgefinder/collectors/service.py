@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from edgefinder.config import Settings
 from edgefinder.models import Signal, Source
-from edgefinder.normalization import canonicalize_url, clean_text, contains_suspicious_instructions, content_hash
+from edgefinder.normalization import canonicalize_url, clean_text, contains_suspicious_instructions, content_hash, job_fingerprint
 
 from .base import BaseCollector, RawSignal
 
@@ -34,12 +34,15 @@ def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
     excerpt = clean_text(raw.excerpt, limit=2000)
     url = canonicalize_url(raw.url)
     digest = content_hash(title, excerpt)
+    fingerprint = job_fingerprint(str(raw.metadata.get("employer") or "") or None, title) if source.kind == "jobs" else None
     existing = session.scalar(
         select(Signal).where(Signal.source_id == source.id, Signal.external_id == raw.external_id)
     )
     if existing:
         if existing.content_hash == digest:
             existing.fetched_at = datetime.now(timezone.utc)
+            if fingerprint and not existing.fingerprint:
+                existing.fingerprint = fingerprint
             return "skipped"
         existing.title = title
         existing.excerpt = excerpt
@@ -51,6 +54,7 @@ def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
         existing.region = raw.region
         existing.deadline_at = _utc(raw.deadline_at)
         existing.metadata_json = raw.metadata
+        existing.fingerprint = fingerprint
         existing.suspicious_instructions = contains_suspicious_instructions(f"{title} {excerpt}")
         return "updated"
     duplicate_hash = session.scalar(select(Signal.id).where(Signal.content_hash == digest).limit(1))
@@ -70,6 +74,7 @@ def _store_signal(session: Session, source: Source, raw: RawSignal) -> str:
             content_hash=digest,
             suspicious_instructions=contains_suspicious_instructions(f"{title} {excerpt}"),
             metadata_json=raw.metadata,
+            fingerprint=fingerprint,
         )
     )
     return "inserted"

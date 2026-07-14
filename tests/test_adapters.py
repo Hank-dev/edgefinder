@@ -7,12 +7,14 @@ import httpx
 import pytest
 
 from edgefinder.collectors.adapters import (
+    AbakusCollector,
     BrregCollector,
     DoffinCollector,
     EuFundingCollector,
     FeedCollector,
     GitHubIssuesCollector,
     HackerNewsCollector,
+    Kode24Collector,
     NavJobsCollector,
     StackExchangeCollector,
     TedNorwayCollector,
@@ -209,3 +211,88 @@ async def test_feed_collector_keeps_entries_without_a_description() -> None:
         results = await FeedCollector(settings, key="eurlex", url="https://eur-lex.example/feed", region="europe", language="en").collect(client)
     assert len(results) == 1
     assert results[0].excerpt == "Commission Implementing Regulation (EU) 2026/999"
+
+
+@pytest.mark.asyncio
+async def test_abakus_adapter_normalizes_job_listings_and_drops_expired_deadlines() -> None:
+    # Fixture mirrors the live https://lego.abakus.no/api/v1/joblistings/ response observed
+    # 2026-07-14: cursor-paginated {next, previous, results[]}; each result has company.name,
+    # workplaces[].town, deadline (ISO8601 with trailing Z), and jobType (e.g. "full_time").
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+    future = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+    past = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "lego.abakus.no"
+        return httpx.Response(200, json={"next": None, "previous": None, "results": [
+            {"id": 21, "title": "Graduate Developer", "slug": "21-graduate-developer", "company": {"id": 1, "name": "Data AS"}, "deadline": future, "jobType": "full_time", "workplaces": [{"id": 1, "town": "Oslo"}]},
+            {"id": 22, "title": "Utgått stilling", "slug": "22-utgatt-stilling", "company": {"id": 2, "name": "Gammel AS"}, "deadline": past, "jobType": "part_time", "workplaces": [{"id": 2, "town": "Bergen"}]},
+        ]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await AbakusCollector(settings).collect(client)
+    assert [item.external_id for item in results] == ["21"]  # expired deadline dropped
+    signal = results[0]
+    assert signal.url == "https://abakus.no/joblistings/21"
+    assert signal.metadata["employer"] == "Data AS"
+    assert signal.metadata["municipality"] == "Oslo"
+    assert signal.metadata["source_board"] == "Abakus"
+    assert signal.metadata["status"] == "ACTIVE"
+    assert signal.metadata["job_type"] == "full_time"
+    assert signal.deadline_at is not None
+    assert signal.region == "norway"
+    assert signal.language == "no"
+
+
+@pytest.mark.asyncio
+async def test_kode24_adapter_parses_job_cards() -> None:
+    # Fixture mirrors the live board observed 2026-07-14: https://www.kode24.no/jobb
+    # 302-redirects to https://www.kodejobb.no, which 308-redirects to https://kodejobb.no/
+    # (a Next.js app). The homepage only samples 4 jobs; the full board lives at
+    # https://kodejobb.no/stillinger (21 postings observed, server-rendered, no JSON
+    # endpoint found). Each card is <li class="job-list-item">...<a href="/stillinger/
+    # {employer-slug}/{uuid}">, with .job-title-from-customer (real job title),
+    # .job-company-name (employer), and .job-location holding two duplicate spans
+    # (light/dark mode) each following an inline <svg> icon before the plain-text city.
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+    html = (
+        '<li class="job-list-item bg-gray-50 dark:bg-gray-800 rounded-lg relative">'
+        '<a class="flex flex-col justify-between h-full" '
+        'href="/stillinger/eksempel-as/11111111-1111-1111-1111-111111111111">'
+        '<div class="job-title-from-customer text-2xl dark:text-gray-50 font-semibold">Senior utvikler</div>'
+        '<div class="job-company-name font dark:text-gray-400 mb-4">Eksempel AS</div>'
+        '<div class="job-location comma-separated-list flex flex-wrap gap-2">'
+        '<span class="p-2 dark:hidden"><span class="text-pink-500">'
+        '<svg viewBox="0 0 24 24"><path d="M1"></path></svg></span>Oslo</span>'
+        '<span class="p-2 hidden dark:flex"><span class="text-pink-500">'
+        '<svg viewBox="0 0 24 24"><path d="M1"></path></svg></span>Oslo</span>'
+        "</div></a></li>"
+        '<li class="job-list-item bg-gray-50 dark:bg-gray-800 rounded-lg relative">'
+        '<a class="flex flex-col justify-between h-full" '
+        'href="/stillinger/data-as/22222222-2222-2222-2222-222222222222">'
+        '<div class="job-title-from-customer text-2xl dark:text-gray-50 font-semibold">Data engineer</div>'
+        '<div class="job-company-name font dark:text-gray-400 mb-4">Data AS</div>'
+        '<div class="job-location comma-separated-list flex flex-wrap gap-2">'
+        '<span class="p-2 dark:hidden"><span class="text-pink-500">'
+        '<svg viewBox="0 0 24 24"><path d="M1"></path></svg></span>Trondheim</span>'
+        '<span class="p-2 hidden dark:flex"><span class="text-pink-500">'
+        '<svg viewBox="0 0 24 24"><path d="M1"></path></svg></span>Trondheim</span>'
+        "</div></a></li>"
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "kodejobb.no"
+        return httpx.Response(200, text=html)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await Kode24Collector(settings).collect(client)
+    assert [item.external_id for item in results] == [
+        "11111111-1111-1111-1111-111111111111",
+        "22222222-2222-2222-2222-222222222222",
+    ]
+    assert results[0].url == "https://kodejobb.no/stillinger/eksempel-as/11111111-1111-1111-1111-111111111111"
+    assert results[1].url == "https://kodejobb.no/stillinger/data-as/22222222-2222-2222-2222-222222222222"
+    assert results[0].metadata["employer"] == "Eksempel AS"
+    assert results[1].metadata["municipality"] == "Trondheim"
+    assert all(item.metadata["source_board"] == "kode24" for item in results)
+    assert all(item.language == "no" and item.region == "norway" for item in results)

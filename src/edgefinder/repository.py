@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, desc, func, or_, select
+from sqlalchemy import and_, delete, desc, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from .config import Settings
@@ -13,6 +13,7 @@ from .models import (
     AgentReview,
     Evidence,
     Feedback,
+    JobPick,
     Opportunity,
     OpportunityKind,
     OpportunityStatus,
@@ -23,7 +24,7 @@ from .models import (
     utcnow,
 )
 from .normalization import text_similarity
-from .schemas import CandidateInput, FeedbackInput, ReviewInput, UsageInput
+from .schemas import CandidateInput, FeedbackInput, JobPickInput, ReviewInput, UsageInput
 from .scoring import calculate_confidence, calculate_score
 
 
@@ -408,6 +409,25 @@ def add_feedback(session: Session, opportunity_id: str, payload: FeedbackInput) 
     session.commit()
     session.refresh(opportunity)
     return opportunity
+
+
+def save_job_picks(session: Session, run_id: str, picks: list[JobPickInput]) -> list[JobPick]:
+    run = session.get(ResearchRun, run_id)
+    if not run or run.status not in {RunStatus.RUNNING, RunStatus.DRAFT}:
+        raise DomainError("Run does not exist or is not writable")
+    if len(picks) > 5:
+        raise DomainError("At most five job picks per run")
+    requested = [pick.signal_id for pick in picks]
+    if requested:
+        found = set(session.scalars(select(Signal.id).where(Signal.id.in_(requested))).all())
+        missing = set(requested) - found
+        if missing:
+            raise DomainError(f"Unknown signal ids: {sorted(missing)}")
+    session.execute(delete(JobPick).where(JobPick.run_id == run_id))
+    rows = [JobPick(run_id=run_id, signal_id=pick.signal_id, reasoning=pick.reasoning) for pick in picks]
+    session.add_all(rows)
+    session.commit()
+    return rows
 
 
 def feedback_context(session: Session, limit: int = 50) -> list[dict[str, Any]]:

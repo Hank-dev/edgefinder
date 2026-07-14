@@ -270,3 +270,26 @@ aside{display:flex;flex-direction:column;gap:16px}
   .cat-tabs{gap:6px}
   .cat-tab{padding:8px 14px;font-size:13px}
 }
+
+/* JOBS FEED */
+.talent-layout{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:24px;align-items:start}
+@media(max-width:900px){.talent-layout{grid-template-columns:1fr}}
+.profile-hint{font-size:13px;color:var(--muted)}
+.pick-strip{margin:16px 0}
+.pick-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.pick-card{display:block;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);transition:border-color .12s}
+.pick-card:hover{border-color:hsl(var(--pewter) / .3)}
+.pick-employer{color:var(--muted);font-size:12px;margin-top:4px}
+.pick-reason{font-size:13px;color:hsl(var(--fg) / .7);margin-top:8px}
+.job-side{display:flex;align-items:center;gap:12px}
+.score-badge{font-weight:500;font-size:17px;min-width:42px;text-align:center;padding:5px 7px;border-radius:var(--radius);border:1px solid var(--border);color:hsl(var(--white));cursor:help}
+.board-chip{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--border)}
+.board-chip--alt{opacity:.7}
+.deadline-badge{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid hsl(var(--dawn) / .5)}
+.deadline-badge--soon{border-color:hsl(0 84% 60% / .7)}
+.status-chip{font-size:11px;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:0.04em}
+.status-actions{display:flex;gap:4px}
+.status-actions form{margin:0}
+.status-btn{border:1px solid var(--border);background:transparent;color:inherit;border-radius:6px;width:30px;height:30px;cursor:pointer;transition:border-color .12s}
+.status-btn:hover{border-color:hsl(var(--pewter) / .5)}
+.cluster-name{font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:12px 0 4px}

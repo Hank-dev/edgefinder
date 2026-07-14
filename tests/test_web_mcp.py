@@ -45,7 +45,7 @@ def test_internal_collection_requires_a_different_token() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mcp_contract_exposes_only_the_nine_planned_tools() -> None:
+async def test_mcp_contract_exposes_only_the_ten_planned_tools() -> None:
     tools = await mcp.list_tools()
     assert {tool.name for tool in tools} == {
         "start_weekly_run",
@@ -55,6 +55,7 @@ async def test_mcp_contract_exposes_only_the_nine_planned_tools() -> None:
         "find_similar_opportunities",
         "save_candidate",
         "save_review",
+        "save_job_picks",
         "publish_run",
         "fail_run",
     }

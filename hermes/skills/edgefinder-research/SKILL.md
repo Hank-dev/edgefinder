@@ -26,8 +26,9 @@ Never perform outreach, submit forms, publish externally, purchase anything, acc
    - Skeptic: search for competitors, contrary evidence, regulation, adoption barriers, and reasons no market exists.
    - Judge: apply the fixed score dimensions, distinguish attractiveness from confidence, and specify the cheapest ethical 48-hour validation test. The judge's `score_delta` is applied to the stored score, so calibrate it deliberately.
 9. Save both skeptic and judge reviews. Reject candidates with fatal guardrail violations. Do not fill empty report slots.
-10. Publish at most five ranked candidates and two watch signals. Report model usage and estimated cost honestly. If the estimated cost exceeds the run budget, reduce work or fail the run.
-11. If an unrecoverable error occurs, call `fail_run` with a concise diagnostic. Never leave a run active.
+10. From the job signals seen this run (the `labor` lane carries job-kind sources), choose up to five openings that best fit the operator profile and call `save_job_picks` with one-line reasoning per pick. Picks are a service to the operator's own job hunt: judge fit against stated skills, target roles, and locations — not business potential. Skip the call entirely if no job signal genuinely fits.
+11. Publish at most five ranked candidates and two watch signals. Report model usage and estimated cost honestly. If the estimated cost exceeds the run budget, reduce work or fail the run.
+12. If an unrecoverable error occurs, call `fail_run` with a concise diagnostic. Never leave a run active.
 
 ## Quality rules
 

@@ -79,6 +79,11 @@ class ReviewInput(BaseModel):
     score_delta: float = Field(default=0, ge=-25, le=25)
 
 
+class JobPickInput(BaseModel):
+    signal_id: str
+    reasoning: str = Field(min_length=3, max_length=300)
+
+
 class UsageInput(BaseModel):
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)

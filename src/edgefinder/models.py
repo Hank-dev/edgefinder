@@ -40,6 +40,12 @@ class OpportunityStatus(str, enum.Enum):
     SUPERSEDED = "superseded"
 
 
+class JobStatusValue(str, enum.Enum):
+    INTERESTED = "interested"
+    APPLIED = "applied"
+    DISMISSED = "dismissed"
+
+
 class Source(Base):
     __tablename__ = "sources"
 
@@ -66,6 +72,7 @@ class Signal(Base):
         UniqueConstraint("source_id", "external_id", name="uq_signal_source_external"),
         Index("ix_signals_observed_at", "observed_at"),
         Index("ix_signals_content_hash", "content_hash"),
+        Index("ix_signals_fingerprint", "fingerprint"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -82,6 +89,7 @@ class Signal(Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     suspicious_instructions: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    fingerprint: Mapped[str | None] = mapped_column(String(16))
 
     source: Mapped[Source] = relationship(back_populates="signals")
     evidence: Mapped[list[Evidence]] = relationship(back_populates="signal")
@@ -180,3 +188,24 @@ class Feedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     opportunity: Mapped[Opportunity] = relationship(back_populates="feedback")
+
+
+class JobStatus(Base):
+    __tablename__ = "job_status"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    fingerprint: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    status: Mapped[JobStatusValue] = mapped_column(Enum(JobStatusValue, native_enum=False))
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class JobPick(Base):
+    __tablename__ = "job_picks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    run_id: Mapped[str] = mapped_column(ForeignKey("research_runs.id", ondelete="CASCADE"), index=True)
+    signal_id: Mapped[str] = mapped_column(ForeignKey("signals.id", ondelete="CASCADE"), index=True)
+    reasoning: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
