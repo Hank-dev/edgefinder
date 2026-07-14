@@ -58,3 +58,15 @@ async def test_send_telegram_message_posts_to_bot_api() -> None:
     assert captured["body"]["chat_id"] == "chat-1"
     assert captured["body"]["text"] == "hello"
     assert captured["body"]["disable_web_page_preview"] is True
+
+
+@pytest.mark.asyncio
+async def test_send_telegram_message_failure_never_leaks_the_token() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"ok": False, "description": "Unauthorized"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(RuntimeError) as failure:
+            await send_telegram_message(client, "secret-bot-token", "chat-1", "hello")
+    assert "secret-bot-token" not in str(failure.value)
+    assert "401" in str(failure.value)

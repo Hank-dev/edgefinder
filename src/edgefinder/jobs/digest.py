@@ -39,7 +39,9 @@ async def send_telegram_message(client: httpx.AsyncClient, bot_token: str, chat_
         f"https://api.telegram.org/bot{bot_token}/sendMessage",
         json={"chat_id": chat_id, "text": text, "disable_web_page_preview": True},
     )
-    response.raise_for_status()
+    if response.status_code >= 400:
+        # raise_for_status would embed the URL — and with it the bot token — in the message.
+        raise RuntimeError(f"Telegram sendMessage failed with HTTP {response.status_code}") from None
 
 
 async def send_digest(hours: int = 24) -> dict[str, Any]:
