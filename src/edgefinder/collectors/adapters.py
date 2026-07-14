@@ -456,6 +456,53 @@ class TheHubCollector(BaseCollector):
         return results[:300]
 
 
+class Kode24Collector(BaseCollector):
+    """Reads kode24's Norwegian developer-job board (kodejobb.no) from its server-rendered listing page.
+
+    https://www.kode24.no/jobb 302-redirects to https://www.kodejobb.no, which 308-redirects
+    to https://kodejobb.no/ -- a Next.js app whose homepage only samples a handful of jobs.
+    The full board (server-rendered, no JSON endpoint reachable) lives at /stillinger.
+    """
+
+    key = "kode24"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get("https://kodejobb.no/stillinger")
+        response.raise_for_status()
+        results: list[RawSignal] = []
+        seen: set[str] = set()
+        pattern = re.compile(
+            r'href="(?P<path>/stillinger/(?P<slug>[a-z0-9-]+)/(?P<id>[0-9a-f-]{36}))"[^>]*>.*?'
+            r'class="job-title-from-customer[^"]*">(?P<title>.*?)</div>.*?'
+            r'class="job-company-name[^"]*">(?P<employer>.*?)</div>.*?'
+            r'class="job-location[^"]*">.*?</svg></span>(?P<location>[^<]*)</span>',
+            re.I | re.S,
+        )
+        for match in pattern.finditer(response.text):
+            identifier = match.group("id")
+            if identifier in seen:
+                continue
+            seen.add(identifier)
+            title = clean_text(match.group("title"), limit=500)
+            employer = clean_text(match.group("employer"), limit=300) or "ukjent arbeidsgiver"
+            municipality = clean_text(match.group("location"), limit=200) or "Norge"
+            if not title:
+                continue
+            results.append(
+                RawSignal(
+                    identifier,
+                    f"https://kodejobb.no{match.group('path')}",
+                    title,
+                    clean_text(f"{title} hos {employer} i {municipality}. Utvikler-stilling fra kode24."),
+                    datetime.now(timezone.utc),
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": municipality, "source_board": "kode24", "status": "ACTIVE"},
+                )
+            )
+        return results[:200]
+
+
 class DoffinCollector(BaseCollector):
     """Reads Doffin's public search backend for the national notices TED never carries (below EEA thresholds)."""
 

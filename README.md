@@ -49,6 +49,8 @@ Collection isolates source failures and shows them on the dashboard. NAV collect
 
 Abakus (NTNU's data/komtek linjeforening) job listings are collected via its public `lego.abakus.no` API; the sibling Online career board was evaluated but dropped because its documented API host (`old.online.ntnu.no`) no longer resolves and the redesigned `online.ntnu.no` site exposes no equivalent public JSON endpoint.
 
+kode24's Norwegian developer job board is collected by scraping the server-rendered listing at `https://kodejobb.no/stillinger` — `kode24.no/jobb` now redirects there (through `kodejobb.no`) rather than hosting listings itself, and the destination site exposes no JSON API, so the collector regex-scrapes the same job cards a visitor sees.
+
 Procurement is covered in two bands: TED carries Norwegian notices above the EEA thresholds, and the Doffin collector reads Doffin's public search backend for national notices below them (skipping anything marked `sentToTed`) — the contract band a small operator can realistically win. The `funding` kind covers open Horizon Europe and Digital Europe calls from the EU Funding & Tenders portal. Signals from tenders and calls carry `deadline_at`, which flows through batches into published opportunities and the dashboard, so time-limited opportunities are visible before their window closes.
 
 Reddit is deliberately not a core source: it rejects non-browser TLS fingerprints regardless of headers, so a reliable adapter needs Reddit OAuth credentials. Add other community feeds through `EXTRA_FEED_URLS`; feed collection retries once on HTTP 429. Sources removed from the configuration are disabled automatically on the next start instead of lingering red on the dashboard.
