@@ -71,6 +71,16 @@ def slugify(value: str, *, limit: int = 180) -> str:
 
 _COMPANY_SUFFIXES = re.compile(r"\b(as|asa|ans|da|sa|ab|aps|ltd|gmbh)\b\.?", re.IGNORECASE)
 
+# Collector fallback employer strings (adapters.py) normalize to these values when the
+# source page has no real employer name. Fingerprinting them would merge unrelated jobs
+# that merely share a title, and a dismissal would then suppress unrelated future jobs.
+_PLACEHOLDER_EMPLOYERS = frozenset({
+    "ukjent arbeidsgiver",
+    "englishjobs listing",
+    "startuplab company",
+    "the hub startup",
+})
+
 
 def job_fingerprint(employer: str | None, title: str | None) -> str | None:
     """Stable id for 'the same job on another board': normalized employer + title."""
@@ -86,6 +96,6 @@ def job_fingerprint(employer: str | None, title: str | None) -> str | None:
 
     company = re.sub(r"\s+", " ", _COMPANY_SUFFIXES.sub(" ", norm(employer))).strip()
     role = norm(title)
-    if not company or not role:
+    if not company or company in _PLACEHOLDER_EMPLOYERS or not role:
         return None
     return hashlib.sha256(f"{company}|{role}".encode()).hexdigest()[:16]

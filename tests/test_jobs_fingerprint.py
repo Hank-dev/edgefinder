@@ -24,6 +24,14 @@ def test_fingerprint_distinguishes_different_jobs() -> None:
     assert left != job_fingerprint("Annet Firma AS", "Data Engineer")
 
 
+def test_placeholder_employers_produce_no_fingerprint() -> None:
+    assert job_fingerprint("ukjent arbeidsgiver", "Data Analyst") is None
+    assert job_fingerprint("EnglishJobs listing", "Data Analyst") is None
+    assert job_fingerprint("STARTUPLAB company", "Data Analyst") is None
+    assert job_fingerprint("The Hub startup", "Data Analyst") is None
+    assert job_fingerprint("Eksempel AS", "Data Analyst") is not None
+
+
 def test_new_models_roundtrip(session, source) -> None:
     from conftest import add_signal  # repo convention, see tests/test_research_flow.py
 
