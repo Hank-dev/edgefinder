@@ -16,11 +16,12 @@ from .repository import (
     operator_context as repo_operator_context,
     publish_run as repo_publish_run,
     save_candidate as repo_save_candidate,
+    save_job_picks as repo_save_job_picks,
     save_review as repo_save_review,
     search_signal_archive as repo_search_archive,
     start_weekly_run as repo_start_run,
 )
-from .schemas import CandidateInput, ReviewInput, UsageInput
+from .schemas import CandidateInput, JobPickInput, ReviewInput, UsageInput
 
 
 mcp = FastMCP(
@@ -97,6 +98,14 @@ def save_review(run_id: str, opportunity_id: str, review: ReviewInput) -> dict[s
     with SessionLocal() as session:
         item = repo_save_review(session, get_settings(), run_id, opportunity_id, review)
         return {"review_id": item.id, "role": item.role, "verdict": item.verdict}
+
+
+@mcp.tool()
+def save_job_picks(run_id: str, picks: list[JobPickInput]) -> dict[str, Any]:
+    """Replace this run's job shortlist: up to five collected job signals that best fit the operator profile, each with one-line reasoning."""
+    with SessionLocal() as session:
+        rows = repo_save_job_picks(session, run_id, picks)
+        return {"saved": len(rows)}
 
 
 @mcp.tool()

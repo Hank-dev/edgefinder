@@ -21,6 +21,7 @@ mcp_servers:
         - find_similar_opportunities
         - save_candidate
         - save_review
+        - save_job_picks
         - publish_run
         - fail_run
       resources: false
