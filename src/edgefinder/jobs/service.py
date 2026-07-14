@@ -19,6 +19,7 @@ CLUSTER_SLUGS: dict[str, str] = {name: re.sub(r"[^a-z]+", "-", name.lower()).str
 _SLUG_TO_CLUSTER = {slug: name for name, slug in CLUSTER_SLUGS.items()}
 MAX_SIGNALS = 3000
 WINDOW_DAYS = 30
+FEED_ROW_CAP = 200
 
 
 @dataclass(slots=True)
@@ -107,7 +108,14 @@ def _latest_agent_picks(session: Session) -> list[AgentPick]:
     ]
 
 
-def build_talent_view(session: Session, settings: Settings, *, tab: str = "all", skill_filter: str = "") -> TalentView:
+def build_talent_view(
+    session: Session,
+    settings: Settings,
+    *,
+    tab: str = "all",
+    skill_filter: str = "",
+    observed_after: datetime | None = None,
+) -> TalentView:
     now = _naive_now()
     profile = load_profile(settings.jobs_profile_path)
     skill_filter = skill_filter.strip().casefold()
@@ -190,6 +198,8 @@ def build_talent_view(session: Session, settings: Settings, *, tab: str = "all",
         selected = list(rows)
     if skill_filter:
         selected = [row for row in selected if skill_filter in row.skills]
+    if observed_after is not None:
+        selected = [row for row in selected if row.observed_at >= observed_after]
 
     if tab == "deadlines":
         selected.sort(key=lambda row: (row.deadline_at, -row.relevance))
@@ -207,7 +217,7 @@ def build_talent_view(session: Session, settings: Settings, *, tab: str = "all",
         for cluster in CLUSTERS
     }
     return TalentView(
-        rows=selected[:200],
+        rows=selected[:FEED_ROW_CAP],
         tab=tab,
         skill_filter=skill_filter,
         tab_counts=tab_counts,

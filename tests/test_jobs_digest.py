@@ -29,6 +29,18 @@ def test_digest_selects_recent_relevant_jobs_only(session, tmp_path) -> None:
     assert [row.signal_id for row in rows] == [relevant.id]
 
 
+def test_digest_windows_before_the_feed_cap(session, tmp_path, monkeypatch) -> None:
+    from edgefinder.jobs import service
+
+    settings = profile_settings(tmp_path)
+    nav = make_job_source(session, "nav-jobs", 0.9)
+    make_job(session, nav, "old", "Data Engineer", "Gammel AS", days_old=5)   # high relevance, outside window
+    fresh = make_job(session, nav, "new", "Data Engineer", "Fersk AS", days_old=0)
+    monkeypatch.setattr(service, "FEED_ROW_CAP", 1, raising=False)
+    rows = select_digest_rows(session, settings, hours=24)
+    assert [row.signal_id for row in rows] == [fresh.id]
+
+
 def test_digest_formats_scores_links_and_deadlines(session, tmp_path) -> None:
     settings = profile_settings(tmp_path)
     nav = make_job_source(session, "nav-jobs", 0.9)

@@ -17,12 +17,8 @@ DIGEST_CAP = 15
 
 def select_digest_rows(session, settings: Settings, hours: int) -> list[JobRow]:
     window_start = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
-    view = build_talent_view(session, settings)
-    return [
-        row
-        for row in view.rows
-        if row.observed_at >= window_start and row.relevance >= settings.digest_min_relevance
-    ][:DIGEST_CAP]
+    view = build_talent_view(session, settings, observed_after=window_start)
+    return [row for row in view.rows if row.relevance >= settings.digest_min_relevance][:DIGEST_CAP]
 
 
 def format_digest(rows: list[JobRow]) -> str:
