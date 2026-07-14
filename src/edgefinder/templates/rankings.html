@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Rankings · Edgefinder{% endblock %}
+{% block content %}
+  <section class="page-head">
+    <div>
+      <p class="eyebrow">Biggest finds</p>
+      <h1>Opportunity rankings</h1>
+      <p>All opportunities ranked by score — including from failed runs. The highest-potential theses surface to the top.</p>
+    </div>
+    <div class="ranking-summary">
+      <div class="summary-stat">
+        <strong>{{ opportunities|length }}</strong>
+        <small>Opportunities</small>
+      </div>
+      {% if opportunities %}
+        <div class="summary-stat">
+          <strong>{{ '%.0f'|format(opportunities[0].score) }}</strong>
+          <small>Top score</small>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if opportunities %}
+    <div class="ranking-list">
+      {% for item in opportunities %}
+        <a class="ranking-row" href="/opportunities/{{ item.id }}">
+          <div class="rank-left">
+            <span class="rank-num">{{ loop.index }}</span>
+            <div class="rank-score-ring">
+              <strong>{{ '%.0f'|format(item.score) }}</strong>
+            </div>
+          </div>
+          <div class="rank-main">
+            <div class="rank-title-row">
+              <span class="kind-tag {{ item.kind.value }}">{{ item.kind.value }}</span>
+              {% if item.status.value != 'new' %}<span class="status-tag">{{ item.status.value|replace('_', ' ') }}</span>{% endif %}
+              <h3>{{ item.title }}</h3>
+            </div>
+            <p class="rank-wedge">{{ item.proposed_wedge[:200] if item.proposed_wedge else '' }}</p>
+            <div class="rank-meta">
+              <span class="meta-item"><i class="dot"></i>{{ '%.0f'|format(item.confidence) }}% confidence</span>
+              {% if item.deadline_at %}<span class="meta-item deadline"><i class="dot"></i>{{ item.deadline_at.strftime('%d.%m.%Y') }}</span>{% endif %}
+              <span class="meta-item">{{ item.created_at.strftime('%d %b %Y') }}</span>
+            </div>
+          </div>
+          <div class="rank-bar">
+            <div class="bar-track"><i style="width: {{ item.score }}%"></i></div>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="empty-state">
+      <span class="signal-icon">⌁</span>
+      <h2>No opportunities yet</h2>
+      <p>Opportunities will appear here once the research agents have run.</p>
+    </section>
+  {% endif %}
+{% endblock %}

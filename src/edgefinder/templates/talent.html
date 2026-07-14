@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Talent Radar · Edgefinder{% endblock %}
+{% block content %}
+  <section class="page-head">
+    <div>
+      <p class="eyebrow">Norway hiring pulse</p>
+      <h1>Talent Radar</h1>
+      <p>White-collar hiring signals from NAV Arbeidsplassen — software, finance, and economics roles. See what skills are sought after and where.</p>
+    </div>
+    <div class="talent-summary">
+      <div class="summary-stat">
+        <strong>{{ total_signals }}</strong>
+        <small>Matching jobs</small>
+      </div>
+      <div class="summary-stat">
+        <strong>{{ total_employers }}</strong>
+        <small>Employers</small>
+      </div>
+      <div class="summary-stat">
+        <strong>{{ total_municipalities }}</strong>
+        <small>Locations</small>
+      </div>
+    </div>
+  </section>
+
+  <div class="cat-tabs">
+    <a href="/talent{% if skill_filter %}?skill={{ skill_filter }}{% endif %}" class="cat-tab {{ 'active' if category == 'all' }}">All<span>{{ total_signals if category == 'all' }}</span></a>
+    {% for cat, count in category_counts.items() %}
+      <a href="/talent?cat={{ cat }}{% if skill_filter %}&skill={{ skill_filter }}{% endif %}" class="cat-tab {{ 'active' if category == cat }}">{{ cat }}<span>{{ count }}</span></a>
+    {% endfor %}
+  </div>
+
+  {% if skill_filter %}
+    <section class="skill-jobs">
+      <div class="skill-jobs-header">
+        <div>
+          <p class="eyebrow">Filtered by skill</p>
+          <h2>{{ skill_filter }} — {{ job_listings|length }} jobs</h2>
+        </div>
+        <a href="/talent{% if category != 'all' %}?cat={{ category }}{% endif %}" class="clear-skill">Clear filter ×</a>
+      </div>
+      <div class="job-list">
+        {% for job in job_listings %}
+          <a class="job-row" href="{{ job.url }}" target="_blank" rel="noreferrer">
+            <div class="job-main">
+              <h3>{{ job.title }}</h3>
+              <div class="job-meta">
+                <span>{{ job.employer }}</span>
+                {% if job.municipality %}<span class="dot-sep">·</span><span>{{ job.municipality }}</span>{% endif %}
+                <span class="dot-sep">·</span><span>{{ job.observed_at }}</span>
+              </div>
+            </div>
+            <span class="job-arrow">↗</span>
+          </a>
+        {% else %}
+          <div class="empty-card">No jobs found matching "{{ skill_filter }}" in this category.</div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <div class="talent-grid">
+    <div class="talent-panel">
+      <div class="panel-heading"><div><p class="eyebrow">Demand</p><h2>Top roles hiring</h2></div></div>
+      <div class="talent-list">
+        {% for role, count in top_roles %}
+          <div class="talent-row">
+            <span class="rank-pos">{{ loop.index }}</span>
+            <span class="talent-name">{{ role }}</span>
+            <div class="talent-bar"><i style="width: {{ (count / top_roles[0][1] * 100)|round }}%"></i></div>
+            <span class="talent-count">{{ count }}</span>
+          </div>
+        {% else %}<p class="muted">No roles found in this category.</p>{% endfor %}
+      </div>
+    </div>
+
+    <div class="talent-panel">
+      <div class="panel-heading"><div><p class="eyebrow">Who's hiring</p><h2>Top employers</h2></div></div>
+      <div class="talent-list">
+        {% for emp, count in top_employers %}
+          <div class="talent-row">
+            <span class="rank-pos">{{ loop.index }}</span>
+            <span class="talent-name">{{ emp }}</span>
+            <div class="talent-bar"><i style="width: {{ (count / top_employers[0][1] * 100)|round }}%"></i></div>
+            <span class="talent-count">{{ count }}</span>
+          </div>
+        {% else %}<p class="muted">No employers found.</p>{% endfor %}
+      </div>
+    </div>
+
+    <div class="talent-panel">
+      <div class="panel-heading"><div><p class="eyebrow">Where</p><h2>Top locations</h2></div></div>
+      <div class="talent-list">
+        {% for muni, count in top_municipalities %}
+          <div class="talent-row">
+            <span class="rank-pos">{{ loop.index }}</span>
+            <span class="talent-name">{{ muni }}</span>
+            <div class="talent-bar"><i style="width: {{ (count / top_municipalities[0][1] * 100)|round }}%"></i></div>
+            <span class="talent-count">{{ count }}</span>
+          </div>
+        {% else %}<p class="muted">No locations found.</p>{% endfor %}
+      </div>
+    </div>
+
+    <div class="talent-panel">
+      <div class="panel-heading"><div><p class="eyebrow">What's sought after</p><h2>Skills in demand</h2></div></div>
+      <div class="skill-cloud">
+        {% for skill, count in top_skills %}
+          <a href="/talent?skill={{ skill }}{% if category != 'all' %}&cat={{ category }}{% endif %}" class="skill-tag {{ 'active' if skill == skill_filter }}" style="font-size: {{ 13 + (count / top_skills[0][1] * 6)|round }}px">{{ skill }}<small>{{ count }}</small></a>
+        {% else %}<p class="muted">No skills data.</p>{% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <section class="talent-cta">
+    <p class="eyebrow">Get alerts</p>
+    <h2>Track roles, employers, or locations</h2>
+    <p>Get Telegram alerts when a matching job is posted. NOK 299/month.</p>
+    <span class="cta-soon">Coming soon</span>
+  </section>
+{% endblock %}

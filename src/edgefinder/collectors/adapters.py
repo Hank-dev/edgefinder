@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -251,6 +252,167 @@ class NavJobsCollector(BaseCollector):
                 )
             )
         return results
+
+
+class JobbnorgeCollector(BaseCollector):
+    """Reads Jobbnorge's public v3 search API for current vacancies."""
+
+    key = "jobbnorge"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get(
+            "https://publicapi.jobbnorge.no/v3/jobs",
+            params={"OrderBy": "Published", "Period": "1", "language": 1},
+        )
+        response.raise_for_status()
+        results: list[RawSignal] = []
+        for item in response.json().get("jobs", []):
+            identifier = str(item.get("id", ""))
+            title = clean_text(item.get("title") or "Ukjent stilling", limit=500)
+            employer = clean_text(item.get("employer") or "ukjent arbeidsgiver", limit=300)
+            locations = item.get("locations") or []
+            location = next((x for x in locations if x.get("isPrimary")), None) or (locations[0] if locations else {})
+            municipality = clean_text(location.get("municipality") or location.get("area") or "Norge", limit=200)
+            summary = clean_text(item.get("summary") or title)
+            try:
+                observed = datetime.strptime(str(item.get("publicationDate")), "%d.%m.%Y").replace(tzinfo=ZoneInfo("Europe/Oslo"))
+            except ValueError:
+                observed = self.timestamp(item.get("publicationDate"), naive_tz=ZoneInfo("Europe/Oslo"))
+            results.append(
+                RawSignal(
+                    identifier,
+                    item.get("link") or f"https://www.jobbnorge.no/ledige-stillinger/stilling/{identifier}",
+                    title,
+                    clean_text(f"{summary} Hos {employer} i {municipality}."),
+                    observed,
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": municipality, "source_board": "Jobbnorge", "status": "ACTIVE"},
+                )
+            )
+        return results
+
+
+class BindeleddetCollector(BaseCollector):
+    """Reads Bindeleddet NTNU's public job API, focused on graduate and white-collar roles."""
+
+    key = "bindeleddet"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get("https://apiv2.bindeleddet.no/jobs/")
+        response.raise_for_status()
+        now = datetime.now(timezone.utc)
+        results: list[RawSignal] = []
+        for item in response.json():
+            if not item.get("is_visible", True):
+                continue
+            deadline_text = str(item.get("deadline") or "")
+            try:
+                deadline = datetime.fromisoformat(deadline_text.replace("+0100", "+01:00").replace("+0200", "+02:00"))
+                if deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+                if deadline < now:
+                    continue
+            except ValueError:
+                deadline = None
+            identifier = str(item.get("id", ""))
+            title = clean_text(item.get("title") or "Ukjent stilling", limit=500)
+            employer = clean_text(item.get("company_name") or "ukjent arbeidsgiver", limit=300)
+            location = clean_text(item.get("location") or "Norge", limit=200)
+            description = clean_text(item.get("description") or title, limit=1800)
+            observed = self.timestamp(item.get("created_at"))
+            results.append(
+                RawSignal(
+                    identifier,
+                    item.get("search_url") or f"https://bindeleddet.no/jobs/{identifier}/",
+                    title,
+                    clean_text(f"{description} Hos {employer} i {location}."),
+                    observed,
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": location, "source_board": "Bindeleddet", "status": "ACTIVE", "job_type": item.get("job_type")},
+                    deadline_at=deadline,
+                )
+            )
+        return results
+
+
+class StartupLabCollector(BaseCollector):
+    """Reads current startup jobs from STARTUPLAB's public Getro-powered board."""
+
+    key = "startuplab"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get("https://jobs.startuplab.no/jobs")
+        response.raise_for_status()
+        results: list[RawSignal] = []
+        pattern = re.compile(r'href="([^\"]*/companies/[^\"]*/jobs/[^\"]+)"[^>]*>(.*?)</a>', re.I | re.S)
+        for match in pattern.finditer(response.text):
+            path, raw_title = match.groups()
+            title = clean_text(raw_title, limit=500)
+            if not title:
+                continue
+            identifier = path.split("/jobs/")[-1].split("#", 1)[0]
+            url = f"https://jobs.startuplab.no{path}" if path.startswith("/") else path
+            context_html = response.text[max(0, match.start() - 1000):match.end() + 1200]
+            employer_match = re.search(r'itemProp="name" content="([^"]+)"', context_html, re.I)
+            employer = clean_text(employer_match.group(1) if employer_match else "STARTUPLAB company", limit=300)
+            context = clean_text(context_html, limit=1800)
+            results.append(RawSignal(identifier, url, title, context, datetime.now(timezone.utc), "en", "norway", {"employer": employer, "municipality": "Norway", "source_board": "STARTUPLAB", "status": "ACTIVE"}))
+        return results[:200]
+
+
+class EnglishJobsCollector(BaseCollector):
+    """Reads EnglishJobs.no category pages for English-speaking white-collar roles."""
+
+    key = "englishjobs"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        results: list[RawSignal] = []
+        seen: set[str] = set()
+        for category in ("software", "finance", "economics"):
+            response = await client.get(f"https://englishjobs.no/jobs/{category}")
+            response.raise_for_status()
+            pattern = re.compile(r'<div id="([^"]+)" class="job[^>]*>.*?<a href="([^"]+)"[^>]*>.*?<h3[^>]*>(.*?)</h3>', re.I | re.S)
+            for identifier, href, raw_title in pattern.findall(response.text):
+                if identifier in seen:
+                    continue
+                seen.add(identifier)
+                title = clean_text(raw_title, limit=500)
+                if not title:
+                    continue
+                block_start = response.text.find(f'id="{identifier}"')
+                context = clean_text(response.text[block_start:block_start + 5000], limit=1800)
+                url = f"https://englishjobs.no{href}" if href.startswith("/") else href
+                results.append(RawSignal(identifier, url, title, context, datetime.now(timezone.utc), "en", "norway", {"employer": "EnglishJobs listing", "municipality": "Norway", "source_board": "EnglishJobs.no", "status": "ACTIVE", "category": category}))
+        return results[:300]
+
+
+class TheHubCollector(BaseCollector):
+    """Reads Norway startup jobs from The Hub's public server-rendered job pages."""
+
+    key = "thehub"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        results: list[RawSignal] = []
+        seen: set[str] = set()
+        for page in range(1, 9):
+            response = await client.get("https://thehub.io/jobs/location/norway", params={"page": page})
+            response.raise_for_status()
+            pattern = re.compile(r'<span class="card-job-find-list__position">(.*?)</span>.*?<div class="bullet-inline-list[^>]*>\s*<span>(.*?)</span>\s*<span>(.*?)</span>.*?<a href="(/jobs/[^"]+)"', re.I | re.S)
+            for raw_title, raw_employer, raw_location, path in pattern.findall(response.text):
+                identifier = path.rsplit("/", 1)[-1]
+                if identifier in seen:
+                    continue
+                seen.add(identifier)
+                title = clean_text(raw_title, limit=500)
+                employer = clean_text(raw_employer, limit=300) or "The Hub startup"
+                location = clean_text(raw_location, limit=200) or "Norway"
+                job_type = ""
+                url = f"https://thehub.io{path}"
+                excerpt = clean_text(f"{title}. {employer}. {location}. Norway startup job listed on The Hub.")
+                results.append(RawSignal(identifier, url, title, excerpt, datetime.now(timezone.utc), "en", "norway", {"employer": employer, "municipality": location, "source_board": "The Hub", "status": "ACTIVE", "job_type": job_type}))
+        return results[:300]
 
 
 class DoffinCollector(BaseCollector):

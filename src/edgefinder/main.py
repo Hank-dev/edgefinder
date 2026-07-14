@@ -96,13 +96,191 @@ def dashboard(request: Request, session: Session = Depends(get_session)) -> HTML
         select(Source, func.count(Signal.id)).outerjoin(Signal).where(Source.enabled).group_by(Source.id).order_by(Source.name)
     ).all()
     opportunities = sorted(
-        [item for item in latest.opportunities if item.status != OpportunityStatus.REJECT],
+        [item for item in latest.opportunities if item.status not in {OpportunityStatus.REJECT, OpportunityStatus.SUPERSEDED}],
         key=lambda item: (item.kind.value, -item.score),
     ) if latest else []
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         template_context(request, latest=latest, opportunities=opportunities, recent_runs=recent_runs, source_counts=source_counts),
+    )
+
+
+@app.get("/talent", response_class=HTMLResponse)
+def talent(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    """Talent Radar — white-collar hiring intelligence from NAV job signals."""
+    import re
+    from collections import Counter
+
+    CATEGORY_KEYWORDS: dict[str, set[str]] = {
+        "software": {
+            "developer", "utvikler", "software", "python", "java", "javascript", "frontend",
+            "backend", "fullstack", "full stack", "devops", "cloud", "aws", "azure", "kubernetes",
+            "react", "node", "typescript", "golang", "rust", "c++", "c#", ".net", "sql", "data engineer",
+            "data scientist", "machine learning", " ai ", " ml ", "systemutvikler", "arkitekt",
+            "tech lead", "teknisk", "it-konsulent", "sikkerhet", "security", "cyber", "scrum",
+            "product owner", "product manager", "qa ", "test ", "terraform", "docker", "linux",
+            "programmerer", "platform", "infrastruktur", "ios", "android", "flutter", "vue",
+            "svelte", "nextjs", "graphql", "microservice", "saas", "api ", "cicd",
+        },
+        "finance": {
+            "økonomi", "finans", "regnskap", "accounting", "controller", "audit", "revisor",
+            "skatt", "tax", "investering", "investment", "bank", "forsikring", "insurance",
+            "aktuar", "actuary", "risk", "compliance", "kreditt", "credit", "analytiker",
+            "analyst", "portfolio", "fond", "fund", "trader", "treasury", "bokfør",
+            "billing", "faktura", "vat", "mva", "afregning", "kapital", "equity", "valuta",
+            "regnskapsfører", "regnskapsmedarbeider", "økonomimedarbeider", "finansanalytiker",
+        },
+        "economics": {
+            "økonom", "analytiker", "analyst", "strateg", "rådgiver", "konsulent", "consultant",
+            "research", "forskning", "marked", "market", "business", "forretningsutvikling",
+            "kommer", "salg", "sales", "prosjektleder", "prosjekt", "change", "transformasjon",
+            "operasjon", "kvalitet", "prosess", "ledelse", "management", "direktør",
+            "forretnings", "business analyst", "strategy",
+        },
+    }
+
+    SKILL_KEYWORDS = [
+        "python", "java", "javascript", "typescript", "react", "vue", "angular", "node",
+        "go ", "golang", "rust", "c++", "c#", ".net", "sql", "nosql", "postgresql",
+        "aws", "azure", "gcp", "cloud", "kubernetes", "docker", "terraform", "ansible",
+        "linux", "windows", "macos", "git", "ci/cd", "jenkins", "github actions",
+        "devops", "sre", "platform", "microservice", "api", "graphql", "rest",
+        "kafka", "rabbitmq", "redis", "elasticsearch", "snowflake", "dbt",
+        "machine learning", " ai ", " ml ", "llm", "tensorflow", "pytorch", "pandas",
+        "scrum", "agile", "kanban", "safe", "prince2", "pmp", "itil",
+        "regnskap", "økonomi", "finans", "audit", "revisjon", "skatt", "tax",
+        "ifs", "sap", "oracle", "power bi", "tableau", "excel", "visma", "tripletex",
+        "excel", "vba", "macros", "powerpoint", "power query",
+        "konsulent", "rådgiver", "prosjektledelse", "forretningsutvikling",
+        "kommunikasjon", "forhandling", "presentasjon", "ledelse",
+        "norsk", "english", "skandinavisk", "tysk", "fransk",
+    ]
+
+    job_sources = session.scalars(select(Source).where(Source.kind == "jobs", Source.enabled.is_(True))).all()
+    if not job_sources:
+        return templates.TemplateResponse(
+            request, "talent.html",
+            template_context(request, total_signals=0, total_employers=0, total_municipalities=0,
+                              top_roles=[], top_employers=[],
+                              top_municipalities=[], top_skills=[],
+                              category="all", category_counts={},
+                              skill_filter="", job_listings=[]),
+        )
+
+    cat_filter = request.query_params.get("cat", "all")
+    skill_filter = request.query_params.get("skill", "").strip().lower()
+    from datetime import datetime as _dt, timedelta
+    cutoff = _dt.now() - timedelta(days=30)
+    source_ids = [source.id for source in job_sources]
+    signals = session.scalars(
+        select(Signal).where(Signal.source_id.in_(source_ids)).order_by(desc(Signal.observed_at)).limit(3000)
+    ).all()
+    signals = [
+        sig for sig in signals
+        if (sig.metadata_json or {}).get("status", "ACTIVE") != "INACTIVE"
+        and (sig.deadline_at is None or sig.deadline_at >= cutoff)
+    ]
+
+    # Categorize each signal
+    categorized: list[tuple[Signal, list[str]]] = []
+    for sig in signals:
+        text = (sig.title + " " + sig.excerpt).lower()
+        cats = [name for name, keywords in CATEGORY_KEYWORDS.items() if any(kw in text for kw in keywords)]
+        categorized.append((sig, cats))
+
+    # Count per category for the filter tabs
+    category_counts = {name: 0 for name in CATEGORY_KEYWORDS}
+    for _sig, cats in categorized:
+        for c in cats:
+            category_counts[c] += 1
+
+    # Filter by selected category
+    if cat_filter in CATEGORY_KEYWORDS:
+        filtered = [(sig, cats) for sig, cats in categorized if cat_filter in cats]
+    else:
+        filtered = categorized
+        cat_filter = "all"
+
+    # Further filter by skill if selected
+    job_listings: list[dict] = []
+    if skill_filter:
+        filtered = [(sig, cats) for sig, cats in filtered if skill_filter in (sig.title + " " + sig.excerpt).lower()]
+        for sig, _cats in filtered:
+            meta = sig.metadata_json or {}
+            job_listings.append({
+                "title": sig.title,
+                "employer": meta.get("employer", ""),
+                "municipality": meta.get("municipality", ""),
+                "url": sig.canonical_url,
+                "observed_at": sig.observed_at.strftime("%d %b %Y"),
+            })
+
+    employers: Counter[str] = Counter()
+    municipalities: Counter[str] = Counter()
+    roles: Counter[str] = Counter()
+    skills: Counter[str] = Counter()
+
+    STOP_WORDS = {
+        "til", "for", "med", "av", "som", "eller", "det", "ved", "kun", "kan", "skal",
+        "har", "ikke", "weekend", "deltid", "heltid", "fast", "engasjement", "oppdrag",
+        "søker", "søkes", "stilling", "stillinger", "ledig", "vår", "nye", "hos",
+        "engasjert", "åpen", "100", "50", "75", "vi", "deg", "du", "er", "en", "ei",
+        "til", "og", "i", "på", "å", "tilsvar", "bruke", "både", "gjennom", "slik",
+        "sine", "sitt", "hvor", "hva", "når", "hvordan", "allerede", "både", "siden",
+    }
+
+    for sig, _cats in filtered:
+        meta = sig.metadata_json or {}
+        if meta.get("employer"):
+            employers[meta["employer"]] += 1
+        if meta.get("municipality"):
+            municipalities[meta["municipality"]] += 1
+        for token in re.findall(r"[a-zA-ZæøåÆØÅ]{3,}", sig.title.lower()):
+            if token not in STOP_WORDS:
+                roles[token] += 1
+        text = (sig.title + " " + sig.excerpt).lower()
+        for kw in SKILL_KEYWORDS:
+            kw_clean = kw.strip()
+            if kw_clean and kw_clean in text:
+                skills[kw_clean] += 1
+
+    return templates.TemplateResponse(
+        request, "talent.html",
+        template_context(
+            request,
+            total_signals=len(filtered),
+            total_employers=len(employers),
+            total_municipalities=len(municipalities),
+            top_employers=employers.most_common(15),
+            top_municipalities=municipalities.most_common(15),
+            top_roles=roles.most_common(15),
+            top_skills=skills.most_common(25),
+            category=cat_filter,
+            category_counts=category_counts,
+            skill_filter=skill_filter,
+            job_listings=job_listings,
+        ),
+    )
+
+
+@app.get("/rankings", response_class=HTMLResponse)
+def rankings(request: Request, session: Session = Depends(get_session)) -> HTMLResponse:
+    """All opportunities ranked by score — regardless of run status.
+
+    Surfaces findings from failed runs too, so the best ideas are never
+    hidden behind a crashed research pipeline.
+    """
+    opportunities = session.scalars(
+        select(Opportunity)
+        .where(Opportunity.status.not_in({OpportunityStatus.REJECT, OpportunityStatus.SUPERSEDED}))
+        .order_by(desc(Opportunity.score))
+        .limit(50)
+    ).all()
+    return templates.TemplateResponse(
+        request,
+        "rankings.html",
+        template_context(request, opportunities=opportunities),
     )
 
 

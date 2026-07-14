@@ -268,8 +268,11 @@ def save_candidate(session: Session, settings: Settings, run_id: str, payload: C
         missing = signal_ids - found
         if missing:
             raise DomainError(f"Unknown signal ids: {sorted(missing)}")
-    if payload.update_of_id and not session.get(Opportunity, payload.update_of_id):
-        raise DomainError(f"update_of_id {payload.update_of_id!r} does not reference a known opportunity")
+    if payload.update_of_id:
+        prior = session.get(Opportunity, payload.update_of_id)
+        if not prior:
+            raise DomainError(f"update_of_id {payload.update_of_id!r} does not reference a known opportunity")
+        prior.status = OpportunityStatus.SUPERSEDED
     score = calculate_score(payload.score_breakdown)
     confidence = calculate_confidence([item.model_dump() for item in payload.evidence])
     opportunity = Opportunity(
@@ -357,7 +360,7 @@ def publish_run(session: Session, settings: Settings, run_id: str, usage: UsageI
         raise DomainError("Run does not exist or cannot be published")
     if usage.estimated_cost_eur > settings.weekly_budget_eur:
         raise DomainError("Estimated weekly cost exceeds configured budget")
-    report_items = [item for item in run.opportunities if item.status != OpportunityStatus.REJECT]
+    report_items = [item for item in run.opportunities if item.status not in {OpportunityStatus.REJECT, OpportunityStatus.SUPERSEDED}]
     ranked = sorted([item for item in report_items if item.kind == OpportunityKind.RANKED], key=lambda item: item.score, reverse=True)
     watch = sorted([item for item in report_items if item.kind == OpportunityKind.WATCH], key=lambda item: item.score, reverse=True)
     if len(ranked) > 5 or len(watch) > 2:
