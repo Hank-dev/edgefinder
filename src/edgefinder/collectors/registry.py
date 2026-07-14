@@ -5,6 +5,7 @@ import hashlib
 from edgefinder.config import Settings
 
 from .adapters import (
+    AbakusCollector,
     ArxivCollector,
     BindeleddetCollector,
     BrregCollector,
@@ -31,6 +32,7 @@ CORE_SOURCES = [
     {"key": "nav-jobs", "name": "NAV Arbeidsplassen", "kind": "jobs", "region": "norway", "base_url": "https://pam-stilling-feed.nav.no", "quality": 0.9},
     {"key": "jobbnorge", "name": "Jobbnorge", "kind": "jobs", "region": "norway", "base_url": "https://publicapi.jobbnorge.no", "quality": 0.9},
     {"key": "bindeleddet", "name": "Bindeleddet NTNU", "kind": "jobs", "region": "norway", "base_url": "https://apiv2.bindeleddet.no", "quality": 0.85},
+    {"key": "abakus", "name": "Abakus NTNU", "kind": "jobs", "region": "norway", "base_url": "https://lego.abakus.no", "quality": 0.85},
     {"key": "startuplab", "name": "STARTUPLAB Job Board", "kind": "jobs", "region": "norway", "base_url": "https://jobs.startuplab.no", "quality": 0.85},
     {"key": "englishjobs", "name": "EnglishJobs.no", "kind": "jobs", "region": "norway", "base_url": "https://englishjobs.no", "quality": 0.8},
     {"key": "thehub", "name": "The Hub Norway", "kind": "jobs", "region": "norway", "base_url": "https://thehub.io", "quality": 0.85},
@@ -60,6 +62,7 @@ def build_collectors(settings: Settings) -> list[BaseCollector]:
         NavJobsCollector(settings),
         JobbnorgeCollector(settings),
         BindeleddetCollector(settings),
+        AbakusCollector(settings),
         StartupLabCollector(settings),
         EnglishJobsCollector(settings),
         TheHubCollector(settings),

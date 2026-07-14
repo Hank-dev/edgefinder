@@ -337,6 +337,47 @@ class BindeleddetCollector(BaseCollector):
         return results
 
 
+class AbakusCollector(BaseCollector):
+    """Reads Abakus (NTNU data/komtek linjeforening) job listings from its public v1 API.
+
+    Note: the sibling Online (NTNU informatics linjeforening) board was evaluated for this
+    lane too, but its documented API host `old.online.ntnu.no` no longer resolves (confirmed
+    NXDOMAIN against 8.8.8.8 on 2026-07-14) and the redesigned `online.ntnu.no` site exposes
+    no equivalent public JSON endpoint, so no Online collector was implemented. See README.
+    """
+
+    key = "abakus"
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        response = await client.get("https://lego.abakus.no/api/v1/joblistings/")
+        response.raise_for_status()
+        now = datetime.now(timezone.utc)
+        results: list[RawSignal] = []
+        for item in response.json().get("results", []):
+            deadline = self.timestamp(item.get("deadline")) if item.get("deadline") else None
+            if deadline and deadline < now:
+                continue
+            identifier = str(item.get("id", ""))
+            title = clean_text(item.get("title") or "Ukjent stilling", limit=500)
+            employer = clean_text(((item.get("company") or {}).get("name")) or "ukjent arbeidsgiver", limit=300)
+            towns = [str(place.get("town", "")) for place in item.get("workplaces") or [] if place.get("town")]
+            municipality = clean_text(", ".join(towns) or "Norge", limit=200)
+            results.append(
+                RawSignal(
+                    identifier,
+                    f"https://abakus.no/joblistings/{identifier}",
+                    title,
+                    clean_text(f"{title} hos {employer} i {municipality}."),
+                    now,
+                    "no",
+                    "norway",
+                    {"employer": employer, "municipality": municipality, "source_board": "Abakus", "status": "ACTIVE", "job_type": item.get("jobType")},
+                    deadline_at=deadline,
+                )
+            )
+        return results
+
+
 class StartupLabCollector(BaseCollector):
     """Reads current startup jobs from STARTUPLAB's public Getro-powered board."""
 

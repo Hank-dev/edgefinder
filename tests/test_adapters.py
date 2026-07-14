@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from edgefinder.collectors.adapters import (
+    AbakusCollector,
     BrregCollector,
     DoffinCollector,
     EuFundingCollector,
@@ -209,3 +210,34 @@ async def test_feed_collector_keeps_entries_without_a_description() -> None:
         results = await FeedCollector(settings, key="eurlex", url="https://eur-lex.example/feed", region="europe", language="en").collect(client)
     assert len(results) == 1
     assert results[0].excerpt == "Commission Implementing Regulation (EU) 2026/999"
+
+
+@pytest.mark.asyncio
+async def test_abakus_adapter_normalizes_job_listings_and_drops_expired_deadlines() -> None:
+    # Fixture mirrors the live https://lego.abakus.no/api/v1/joblistings/ response observed
+    # 2026-07-14: cursor-paginated {next, previous, results[]}; each result has company.name,
+    # workplaces[].town, deadline (ISO8601 with trailing Z), and jobType (e.g. "full_time").
+    settings = Settings(agent_token="test-agent-token", internal_token="test-internal-token")
+    future = (datetime.now(timezone.utc) + timedelta(days=14)).isoformat()
+    past = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "lego.abakus.no"
+        return httpx.Response(200, json={"next": None, "previous": None, "results": [
+            {"id": 21, "title": "Graduate Developer", "slug": "21-graduate-developer", "company": {"id": 1, "name": "Data AS"}, "deadline": future, "jobType": "full_time", "workplaces": [{"id": 1, "town": "Oslo"}]},
+            {"id": 22, "title": "Utgått stilling", "slug": "22-utgatt-stilling", "company": {"id": 2, "name": "Gammel AS"}, "deadline": past, "jobType": "part_time", "workplaces": [{"id": 2, "town": "Bergen"}]},
+        ]})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await AbakusCollector(settings).collect(client)
+    assert [item.external_id for item in results] == ["21"]  # expired deadline dropped
+    signal = results[0]
+    assert signal.url == "https://abakus.no/joblistings/21"
+    assert signal.metadata["employer"] == "Data AS"
+    assert signal.metadata["municipality"] == "Oslo"
+    assert signal.metadata["source_board"] == "Abakus"
+    assert signal.metadata["status"] == "ACTIVE"
+    assert signal.metadata["job_type"] == "full_time"
+    assert signal.deadline_at is not None
+    assert signal.region == "norway"
+    assert signal.language == "no"
