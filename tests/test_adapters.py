@@ -290,6 +290,8 @@ async def test_kode24_adapter_parses_job_cards() -> None:
         "11111111-1111-1111-1111-111111111111",
         "22222222-2222-2222-2222-222222222222",
     ]
+    assert results[0].url == "https://kodejobb.no/stillinger/eksempel-as/11111111-1111-1111-1111-111111111111"
+    assert results[1].url == "https://kodejobb.no/stillinger/data-as/22222222-2222-2222-2222-222222222222"
     assert results[0].metadata["employer"] == "Eksempel AS"
     assert results[1].metadata["municipality"] == "Trondheim"
     assert all(item.metadata["source_board"] == "kode24" for item in results)
