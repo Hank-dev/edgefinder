@@ -15,6 +15,7 @@ Use Hermes chat or `/cron` so the installed version generates the current job sc
 
 - Daily collection at `05:15 Europe/Oslo`, no-agent mode: make an HTTP POST to `http://127.0.0.1:8787/internal/collect` with `Authorization: Bearer $EDGEFINDER_INTERNAL_TOKEN`. Deliver only failures.
 - Daily backup at `03:15 Europe/Oslo`, no-agent mode: run `docker compose exec -T edgefinder edgefinder backup` from the Edgefinder project directory. Retain the command output in the cron history.
+- Daily digest at `07:30 Europe/Oslo`, no-agent mode: run `docker compose exec -T edgefinder edgefinder digest --hours 24` from the Edgefinder project directory.
 - Weekly research at `07:00 every Sunday Europe/Oslo`: attach the `edgefinder-research` skill, use a fresh session, enable web research and the Edgefinder MCP tools, and instruct it to run the complete weekly workflow. Do not attach terminal or filesystem toolsets.
 
 Create the first weekly job paused. Trigger it manually, inspect the unpublished report and cost, then resume it.

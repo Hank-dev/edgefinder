@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import json
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import uvicorn
@@ -55,6 +56,8 @@ def main() -> None:
     serve = subparsers.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8787)
+    digest = subparsers.add_parser("digest")
+    digest.add_argument("--hours", type=int, default=24)
     args = parser.parse_args()
 
     if args.command == "init":
@@ -64,6 +67,15 @@ def main() -> None:
         print(json.dumps(asyncio.run(run_collection()), indent=2))
     elif args.command == "backup":
         print(backup_database())
+    elif args.command == "digest":
+        from .jobs.digest import send_digest
+
+        initialize()
+        try:
+            print(json.dumps(asyncio.run(send_digest(hours=args.hours)), indent=2))
+        except Exception as exc:  # cron-visible failure: non-zero exit, error on stderr
+            print(f"digest failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
     elif args.command == "serve":
         uvicorn.run("edgefinder.main:app", host=args.host, port=args.port)
 

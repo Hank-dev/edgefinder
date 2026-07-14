@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     data_dir: Path = Path("./data")
     backup_dir: Path = Path("./backups")
     jobs_profile_path: Path = Path("./profile.yaml")
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    digest_min_relevance: float = Field(default=60.0, ge=0, le=100)
 
     @property
     def feeds(self) -> list[str]:

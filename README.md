@@ -1,6 +1,6 @@
 # Edgefinder
 
-Edgefinder is a private opportunity-intelligence service for a Hermes Agent VPS. It collects public signals, preserves evidence and feedback, and exposes a constrained MCP surface for weekly multi-agent research. It never performs outreach or other external actions.
+Edgefinder is a private opportunity-intelligence service for a Hermes Agent VPS. It collects public signals, preserves evidence and feedback, and exposes a constrained MCP surface for weekly multi-agent research. It performs no external actions except an opt-in push of new job matches to the operator's own Telegram chat.
 
 ## Local development
 
@@ -60,6 +60,8 @@ FINN.no job listings were evaluated and are deliberately not collected: its `rob
 Signal batches interleave sources round-robin, so one high-volume feed (company registrations, the Official Journal) cannot crowd out sparse, high-value feeds (job ads, tenders) within a run's signal budget. The `get_signal_trends` MCP tool aggregates the collection window — employers hiring repeatedly, industries registering companies, recurring pain terms, upcoming deadlines — without consuming that budget.
 
 Set `OPERATOR_PROFILE` to a short description of your skills, available hours, and capital. It is handed to the research agents with every run so they rank only opportunities you can actually execute, alongside a per-source track record of your validate/reject feedback.
+
+The talent feed ranks jobs against `profile.yaml` (copy from `profile.example.yaml`), dismissals persist across boards via fingerprints, and `edgefinder digest --hours 24` sends new jobs scoring ≥ `DIGEST_MIN_RELEVANCE` to Telegram. With no profile configured, every job scores 50 and the digest warns and sends nothing.
 
 The database schema is owned by Alembic. Run `alembic upgrade head` after every deploy or checkout before starting the service; the app refuses to start against an empty database instead of creating tables itself.
 
