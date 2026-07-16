@@ -90,6 +90,12 @@ def dashboard(request: Request, session: Session = Depends(get_session)) -> HTML
     source_counts = session.execute(
         select(Source, func.count(Signal.id)).outerjoin(Signal).where(Source.enabled).group_by(Source.id).order_by(Source.name)
     ).all()
+    total_signals = sum(count for _source, count in source_counts)
+    healthy_sources = sum(
+        1 for source, _count in source_counts
+        if source.last_success_at is not None and not source.consecutive_failures
+    )
+    failing_sources = sum(1 for source, _count in source_counts if source.consecutive_failures)
     opportunities = sorted(
         [item for item in latest.opportunities if item.status not in {OpportunityStatus.REJECT, OpportunityStatus.SUPERSEDED}],
         key=lambda item: (item.kind.value, -item.score),
@@ -97,7 +103,17 @@ def dashboard(request: Request, session: Session = Depends(get_session)) -> HTML
     return templates.TemplateResponse(
         request,
         "dashboard.html",
-        template_context(request, latest=latest, opportunities=opportunities, recent_runs=recent_runs, source_counts=source_counts),
+        template_context(
+            request,
+            latest=latest,
+            latest_run=recent_runs[0] if recent_runs else None,
+            opportunities=opportunities,
+            recent_runs=recent_runs,
+            source_counts=source_counts,
+            total_signals=total_signals,
+            healthy_sources=healthy_sources,
+            failing_sources=failing_sources,
+        ),
     )
 
 

@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Talent · Edgefinder{% endblock %}
+{% block section %}Talent intelligence{% endblock %}
 {% block content %}
   <section class="page-head">
     <div>
-      <p class="eyebrow">Norway hiring pulse</p>
+      <p class="eyebrow"><span></span>Norway hiring pulse</p>
       <h1>Job feed</h1>
       <p>Relevance-ranked openings across every collected board, deduped by employer and title.</p>
       {% if view.profile_missing %}<p class="profile-hint">No profile configured — every job scores 50. Copy <code>profile.example.yaml</code> to <code>profile.yaml</code> to rank the feed.</p>{% endif %}
@@ -24,9 +25,18 @@
     <a href="/talent?tab=applied" class="cat-tab {{ 'active' if view.tab == 'applied' }}">Applied<span>{{ view.tab_counts['applied'] }}</span></a>
   </div>
 
+  <section class="feed-tools">
+    <div><p class="eyebrow"><span></span>Live feed</p><h2>{{ view.rows|length }} openings in this view</h2></div>
+    <label class="job-filter" for="job-filter">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="job-filter" type="search" placeholder="Filter title, employer, or location" autocomplete="off">
+      <span id="job-filter-count">{{ view.rows|length }} shown</span>
+    </label>
+  </section>
+
   {% if view.agent_picks %}
     <section class="pick-strip">
-      <p class="eyebrow">Agent picks · latest research run</p>
+      <p class="eyebrow"><span></span>Agent picks · latest research run</p>
       <div class="pick-cards">
         {% for pick in view.agent_picks %}
           <a class="pick-card" href="{{ pick.url }}" target="_blank" rel="noreferrer">
@@ -70,7 +80,11 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="status" value="{{ action }}">
                     <input type="hidden" name="back" value="/talent{% if view.tab != 'all' %}?tab={{ view.tab }}{% endif %}">
-                    <button type="submit" class="status-btn status-btn--{{ action }}">{{ {'interested': '☆', 'applied': '✓', 'dismissed': '×'}[action] }}</button>
+                    <button type="submit" class="status-btn status-btn--{{ action }}" aria-label="Mark job {{ action }}" title="Mark {{ action }}">
+                      {% if action == 'interested' %}<svg viewBox="0 0 20 20" fill="none"><path d="m10 3 2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2L5.8 16l.8-4.7L3.2 8l4.7-.7L10 3Z"/></svg>
+                      {% elif action == 'applied' %}<svg viewBox="0 0 20 20" fill="none"><path d="m4 10.5 3.5 3.5L16 5.5"/></svg>
+                      {% else %}<svg viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15"/></svg>{% endif %}
+                    </button>
                   </form>
                 {% endfor %}
               </div>

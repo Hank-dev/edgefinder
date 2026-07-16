@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ opportunity.title }} · Edgefinder{% endblock %}
+{% block section %}Opportunity detail{% endblock %}
 {% block content %}
   <a class="back-link" href="/">← Desk</a>
   <section class="detail-hero">
@@ -16,10 +17,10 @@
         <div><small>Norway advantage</small><p>{{ opportunity.norway_advantage }}</p></div>
         <div><small>Global path</small><p>{{ opportunity.global_path }}</p></div>
       </section>
-      <section class="content-section"><p class="eyebrow">Evidence ledger</p><h2>What this rests on</h2>
+      <section class="content-section"><p class="eyebrow"><span></span>Evidence ledger</p><h2>What this rests on</h2>
         <div class="evidence-list">{% for evidence in opportunity.evidence %}<a href="{{ evidence.source_url }}" target="_blank" rel="noreferrer"><span class="stance {{ evidence.stance }}">{{ evidence.stance }}</span><p>{{ evidence.claim }}</p><small>{{ evidence.source_name }} ↗</small></a>{% endfor %}</div>
       </section>
-      <section class="content-section"><p class="eyebrow">Agent review</p><h2>Debate, not consensus</h2>
+      <section class="content-section"><p class="eyebrow"><span></span>Agent review</p><h2>Debate, not consensus</h2>
         <div class="review-list">{% for review in opportunity.reviews %}<div><span>{{ review.role }}</span><b>{{ review.verdict }}</b><p>{{ review.reasoning }}</p><small>Score adjustment {{ '%+.1f'|format(review.score_delta) }}</small></div>{% else %}<p class="muted">No reviews attached.</p>{% endfor %}</div>
       </section>
     </article>
