@@ -1,25 +1,50 @@
 {% extends "base.html" %}
-{% block title %}Weekly desk · Edgefinder{% endblock %}
+{% block title %}Intelligence desk · Edgefinder{% endblock %}
+{% block section %}Intelligence desk{% endblock %}
 {% block content %}
-  <section class="hero">
+  <section class="dashboard-intro">
     <div>
-      <p class="eyebrow">Norway edge · global upside</p>
-      <h1>Signals worth leaning into.</h1>
-      <p class="hero-copy">Boring operational pain, unusual wedges, and an honest record of what the agents could not prove.</p>
+      <p class="eyebrow"><span></span>Operator console</p>
+      <h1>Find the signal.<br><em>Ignore the noise.</em></h1>
+      <p class="hero-copy">A living view of Norwegian market friction, unusual wedges, and the evidence strong enough to act on.</p>
     </div>
-    {% if latest %}
-      <div class="run-stamp">
-        <small>Latest intelligence run</small>
-        <strong>{{ latest.published_at.strftime('%d %b %Y') }}</strong>
-        <span>{{ latest.model_name or 'Hermes default model' }} · €{{ '%.2f'|format(latest.estimated_cost_eur) }}</span>
-      </div>
-    {% endif %}
+    <div class="hero-actions">
+      <a class="btn-secondary" href="/talent">Scan job demand</a>
+      <a class="btn-primary" href="/rankings">Open rankings <svg class="arrow-icon" viewBox="0 0 16 16" fill="none"><path d="M3 13 13 3M6 3h7v7"/></svg></a>
+    </div>
+  </section>
+
+  <section class="metric-grid" aria-label="System overview">
+    <div class="metric-card accent">
+      <div class="metric-top"><span>Collected signals</span><i class="metric-icon">Σ</i></div>
+      <strong>{{ '{:,}'.format(total_signals) }}</strong>
+      <small>Across the active archive</small>
+      <div class="metric-line"><i style="width:100%"></i></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-top"><span>Sources reporting</span><i class="status-orbit"><b></b></i></div>
+      <strong>{{ healthy_sources }}<sup>/{{ source_counts|length }}</sup></strong>
+      <small>{% if failing_sources %}{{ failing_sources }} adapter{{ '' if failing_sources == 1 else 's' }} need attention{% else %}Collection network nominal{% endif %}</small>
+      <div class="metric-line"><i style="width:{{ (healthy_sources * 100 / source_counts|length)|round if source_counts else 0 }}%"></i></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-top"><span>Published theses</span><i class="metric-icon">◇</i></div>
+      <strong>{{ opportunities|length }}</strong>
+      <small>{% if latest %}From {{ latest.published_at.strftime('%d %b %Y') }}{% else %}Awaiting first publication{% endif %}</small>
+      <div class="metric-line"><i style="width:{{ [opportunities|length * 20, 100]|min }}%"></i></div>
+    </div>
+    <div class="metric-card {{ 'danger' if latest_run and latest_run.status.value == 'failed' else '' }}">
+      <div class="metric-top"><span>Research engine</span><i class="metric-icon">⌁</i></div>
+      <strong class="metric-status {{ latest_run.status.value if latest_run else 'idle' }}">{{ latest_run.status.value|replace('_', ' ') if latest_run else 'Idle' }}</strong>
+      <small>{% if latest_run %}Last run {{ latest_run.started_at.strftime('%d %b · %H:%M') }}{% else %}No run history yet{% endif %}</small>
+      <div class="metric-line"><i style="width:{{ 100 if latest_run and latest_run.status.value == 'published' else 18 }}%"></i></div>
+    </div>
   </section>
 
   {% if latest %}
     <section class="section-heading">
-      <div><p class="eyebrow">This week</p><h2>Ranked opportunities</h2></div>
-      <span>{{ opportunities|selectattr('kind.value', 'equalto', 'ranked')|list|length }} survived review</span>
+      <div><p class="eyebrow"><span></span>Latest intelligence</p><h2>Ranked opportunities</h2></div>
+      <a class="text-link" href="/rankings">View all rankings →</a>
     </section>
     <div class="opportunity-grid">
       {% for item in opportunities if item.kind.value == 'ranked' %}
@@ -27,42 +52,80 @@
           <div class="card-top"><span class="tag">{{ item.status.value|replace('_', ' ') }}</span><span class="score">{{ '%.0f'|format(item.score) }}</span></div>
           <h3>{{ item.title }}</h3>
           <p>{{ item.proposed_wedge }}</p>
-          <div class="meter-row"><span>Confidence</span><div class="meter"><i style="width: {{ item.confidence }}%"></i></div><b>{{ '%.0f'|format(item.confidence) }}</b></div>
-          <div class="card-foot"><span>{{ item.evidence|length }} evidence items{% if item.deadline_at %} · deadline {{ item.deadline_at.strftime('%d.%m') }}{% endif %}</span><span>Inspect →</span></div>
+          <div class="meter-row"><span>Confidence</span><div class="meter"><i style="width:{{ item.confidence }}%"></i></div><b>{{ '%.0f'|format(item.confidence) }}%</b></div>
+          <div class="card-foot"><span>{{ item.evidence|length }} evidence items{% if item.deadline_at %} · due {{ item.deadline_at.strftime('%d.%m') }}{% endif %}</span><span>Inspect →</span></div>
         </a>
       {% else %}
         <div class="empty-card">No ranked opportunity met the publication bar this week.</div>
       {% endfor %}
     </div>
 
-    <section class="section-heading compact"><div><p class="eyebrow">Weak signals</p><h2>Watchlist</h2></div></section>
-    <div class="watch-list">
-      {% for item in opportunities if item.kind.value == 'watch' %}
-        <a href="/opportunities/{{ item.id }}"><span>{{ item.title }}</span><small>Score {{ '%.0f'|format(item.score) }} · confidence {{ '%.0f'|format(item.confidence) }}</small></a>
-      {% else %}
-        <p class="muted" style="padding:24px">No watch signals were strong enough to retain.</p>
-      {% endfor %}
-    </div>
+    {% set watch_items = opportunities|selectattr('kind.value', 'equalto', 'watch')|list %}
+    {% if watch_items %}
+      <section class="section-heading compact"><div><p class="eyebrow"><span></span>Weak signals</p><h2>Watchlist</h2></div><span>{{ watch_items|length }} retained</span></section>
+      <div class="watch-list">
+        {% for item in watch_items %}
+          <a href="/opportunities/{{ item.id }}"><span><small>WATCH / {{ '%02d'|format(loop.index) }}</small><strong>{{ item.title }}</strong></span><b>{{ '%.0f'|format(item.score) }}</b></a>
+        {% endfor %}
+      </div>
+    {% endif %}
   {% else %}
-    <section class="empty-state"><span class="signal-icon">⌁</span><h2>Building the baseline</h2><p>The collector is gathering public signals. The first report appears after the Hermes dry-run is reviewed and published.</p></section>
+    <section class="baseline-card">
+      <div class="radar-visual" aria-hidden="true">
+        <div class="radar-grid"><i></i><i></i><i></i><span></span><b></b></div>
+        <p>LIVE COLLECTION</p>
+      </div>
+      <div class="baseline-copy">
+        <p class="eyebrow"><span></span>Research status</p>
+        <h2>Building the baseline</h2>
+        <p>The collection layer is alive and the archive already contains <strong>{{ '{:,}'.format(total_signals) }} public signals</strong>. No thesis has cleared the evidence and review gates yet.</p>
+        <div class="pipeline-steps">
+          <div class="done"><span>01</span><p><b>Collect</b><small>{{ healthy_sources }} sources reporting</small></p></div>
+          <div class="{{ 'error' if latest_run and latest_run.status.value == 'failed' else 'active' }}"><span>02</span><p><b>Synthesize</b><small>{{ 'Last run failed — inspect automation' if latest_run and latest_run.status.value == 'failed' else 'Agent research pending' }}</small></p></div>
+          <div><span>03</span><p><b>Publish</b><small>Evidence gate not cleared</small></p></div>
+        </div>
+        <div class="baseline-actions"><a class="btn-primary" href="/talent">Use live job intelligence</a><a class="btn-secondary" href="/archive">Search archive</a></div>
+      </div>
+    </section>
   {% endif %}
 
+  <section class="operations-head section-heading">
+    <div><p class="eyebrow"><span></span>Infrastructure</p><h2>Collection network</h2></div>
+    <span>{{ healthy_sources }} healthy · {{ failing_sources }} failing · {{ source_counts|length }} total</span>
+  </section>
   <section class="operations-grid">
-    <div class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Collection</p><h2>Source health</h2></div><span>{{ source_counts|length }} adapters</span></div>
+    <div class="panel source-panel">
+      <div class="panel-heading"><div><h3>Source health</h3><p>Public evidence adapters and archive depth.</p></div><span class="live-label"><i></i>Live</span></div>
       <div class="source-list">
         {% for source, count in source_counts %}
-          <div><span class="health-dot {{ 'bad' if source.consecutive_failures else 'good' }}"></span><span><b>{{ source.name }}</b><small>{{ count }} signals{% if source.last_error %} · {{ source.last_error[:65] }}{% endif %}</small></span><time>{{ source.last_success_at.strftime('%d %b') if source.last_success_at else 'waiting' }}</time></div>
+          <div>
+            <span class="health-dot {{ 'bad' if source.consecutive_failures else ('good' if source.last_success_at else 'idle') }}"></span>
+            <span class="source-name"><b>{{ source.name }}</b><small>{{ source.kind }}</small></span>
+            <span class="source-count"><b>{{ count }}</b><small>signals</small></span>
+            <time>{{ source.last_success_at.strftime('%d %b') if source.last_success_at else 'waiting' }}</time>
+          </div>
         {% endfor %}
       </div>
     </div>
-    <div class="panel">
-      <div class="panel-heading"><div><p class="eyebrow">Automation</p><h2>Recent runs</h2></div></div>
-      <div class="run-list">
-        {% for run in recent_runs %}
-          <div><span class="run-status {{ run.status.value }}">{{ run.status.value }}</span><span>{{ run.started_at.strftime('%d %b · %H:%M') }}</span><b>€{{ '%.2f'|format(run.estimated_cost_eur) }}</b></div>
-        {% else %}<p class="muted">No research runs yet.</p>{% endfor %}
+    <aside class="ops-rail">
+      <div class="panel run-panel">
+        <div class="panel-heading"><div><h3>Research runs</h3><p>Latest automation activity.</p></div></div>
+        <div class="run-list">
+          {% for run in recent_runs %}
+            <div>
+              <span class="run-status {{ run.status.value }}"><i></i>{{ run.status.value }}</span>
+              <time>{{ run.started_at.strftime('%d %b · %H:%M') }}</time>
+              <b>€{{ '%.2f'|format(run.estimated_cost_eur) }}</b>
+            </div>
+          {% else %}<p class="muted">No research runs yet.</p>{% endfor %}
+        </div>
       </div>
-    </div>
+      <div class="panel jump-panel">
+        <p class="eyebrow"><span></span>Fast paths</p>
+        <a href="/talent"><span><b>Job demand</b><small>Relevance-ranked openings</small></span><svg class="arrow-icon" viewBox="0 0 16 16" fill="none"><path d="M3 13 13 3M6 3h7v7"/></svg></a>
+        <a href="/rankings"><span><b>Opportunity stack</b><small>Best theses across all runs</small></span><svg class="arrow-icon" viewBox="0 0 16 16" fill="none"><path d="M3 13 13 3M6 3h7v7"/></svg></a>
+        <a href="/archive"><span><b>Historical search</b><small>Test whether an idea is novel</small></span><svg class="arrow-icon" viewBox="0 0 16 16" fill="none"><path d="M3 13 13 3M6 3h7v7"/></svg></a>
+      </div>
+    </aside>
   </section>
 {% endblock %}

@@ -4,26 +4,72 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#080b10">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
   </head>
   <body>
-    <header class="site-header">
-      <a class="brand" href="/">
-        <span class="brand-mark">E</span>
-        <span>Edgefinder</span>
-      </a>
-      <nav>
-        <a href="/">Desk</a>
-        <a href="/rankings">Rankings</a>
-        <a href="/talent">Talent</a>
-        <a href="/archive">Archive</a>
-      </nav>
-      <span class="private-pill">Private</span>
-    </header>
-    <main>{% block content %}{% endblock %}</main>
-    <footer>Research intelligence only · no outreach · digest to operator only</footer>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="/" aria-label="Edgefinder home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="11.5"/><circle cx="16" cy="16" r="5.5"/><path d="M16 4.5v4M16 23.5v4M4.5 16h4M23.5 16h4"/><path class="brand-sweep" d="M16 16 24.5 8.5"/></svg>
+          </span>
+          <span><strong>Edgefinder</strong><small>Signal intelligence</small></span>
+        </a>
+
+        <nav class="side-nav" aria-label="Primary navigation">
+          <p class="nav-label">Workspace</p>
+          <a href="/" class="{{ 'active' if request.url.path == '/' }}" {% if request.url.path == '/' %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg>
+            <span><strong>Desk</strong><small>Weekly command center</small></span>
+          </a>
+          <a href="/rankings" class="{{ 'active' if request.url.path.startswith('/rankings') }}" {% if request.url.path.startswith('/rankings') %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 20V10m7 10V4m7 16v-7"/><path d="m4 6 5-3 4 4 7-5"/></svg>
+            <span><strong>Rankings</strong><small>Highest conviction</small></span>
+          </a>
+          <a href="/talent" class="{{ 'active' if request.url.path.startswith('/talent') }}" {% if request.url.path.startswith('/talent') %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-2.2c0-2.7 2.2-4.8 4.8-4.8h1.4c2.6 0 4.8 2.1 4.8 4.8V20"/><path d="M16 4.5a3 3 0 0 1 0 6M17.5 13c2 .5 3.5 2.4 3.5 4.7V20"/></svg>
+            <span><strong>Talent</strong><small>Norway hiring pulse</small></span>
+          </a>
+          <a href="/archive" class="{{ 'active' if request.url.path.startswith('/archive') }}" {% if request.url.path.startswith('/archive') %}aria-current="page"{% endif %}>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 7.5h16V20H4V7.5Z"/><path d="M3 4h18v3.5H3V4Zm6 8h6"/></svg>
+            <span><strong>Archive</strong><small>Long-term memory</small></span>
+          </a>
+        </nav>
+
+        <div class="sidebar-foot">
+          <div class="system-card">
+            <span class="system-pulse"></span>
+            <span><strong>Private workspace</strong><small>Local operator access</small></span>
+          </div>
+          <p>NO OUTREACH · READ ONLY</p>
+        </div>
+      </aside>
+
+      <div class="sidebar-scrim" id="sidebar-scrim"></div>
+
+      <div class="workspace">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+            <span></span><span></span>
+          </button>
+          <div class="breadcrumb"><span>Edgefinder</span><i>/</i><strong>{% block section %}Desk{% endblock %}</strong></div>
+          <form class="global-search" method="get" action="/archive" role="search">
+            <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+            <input id="global-search" name="q" value="{{ query|default('') }}" placeholder="Search intelligence" aria-label="Search intelligence">
+            <kbd>/</kbd>
+          </form>
+          <div class="topbar-status"><span></span>System private</div>
+        </header>
+
+        <main>{% block content %}{% endblock %}</main>
+        <footer><span>Edgefinder</span><span>Evidence before conviction.</span></footer>
+      </div>
+    </div>
+    <script src="{{ url_for('static', path='/app.js') }}" defer></script>
   </body>
 </html>
