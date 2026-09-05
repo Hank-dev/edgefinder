@@ -55,7 +55,7 @@ def test_end_to_end_research_publication_and_feedback(session, source) -> None:
     session.commit()
     signal_a = add_signal(session, source, "a")
     signal_b = add_signal(session, second_source, "b")
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     run = start_weekly_run(session, settings, datetime.now(timezone.utc))
     opportunity = save_candidate(session, settings, run.id, candidate(signal_a, signal_b))
     save_review(session, settings, run.id, opportunity.id, ReviewInput(role="skeptic", verdict="advance", reasoning="Existing tools remain broad and do not cover the narrow document handoff in the cited segment."))
@@ -69,7 +69,7 @@ def test_end_to_end_research_publication_and_feedback(session, source) -> None:
 
 def test_publication_gates_independent_evidence_reviews_and_budget(session, source) -> None:
     signal = add_signal(session, source, "only")
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token", weekly_budget_eur=7)
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token", weekly_budget_eur=7)
     run = start_weekly_run(session, settings)
     opportunity = save_candidate(session, settings, run.id, candidate(signal, None))
     with pytest.raises(DomainError, match="independent"):
@@ -81,14 +81,14 @@ def test_publication_gates_independent_evidence_reviews_and_budget(session, sour
 
 
 def test_only_one_run_can_be_active(session) -> None:
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     start_weekly_run(session, settings)
     with pytest.raises(DomainError, match="already active"):
         start_weekly_run(session, settings)
 
 
 def test_stale_active_run_is_auto_failed_so_the_weekly_cadence_survives_a_crash(session) -> None:
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token", max_run_age_hours=48)
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token", max_run_age_hours=48)
     stale = start_weekly_run(session, settings)
     stale.started_at = datetime.now(timezone.utc) - timedelta(hours=49)
     session.commit()
@@ -101,7 +101,7 @@ def test_stale_active_run_is_auto_failed_so_the_weekly_cadence_survives_a_crash(
 
 def test_signal_and_deep_review_limits_are_enforced_in_storage(session, source) -> None:
     signals = [add_signal(session, source, f"limit-{index}") for index in range(12)]
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token", max_signals_per_run=10, max_deep_reviews=1)
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token", max_signals_per_run=10, max_deep_reviews=1)
     run = start_weekly_run(session, settings)
     first_batch = get_signal_batch(session, run.id, settings, limit=6)
     second_batch = get_signal_batch(session, run.id, settings, limit=6)
@@ -127,7 +127,7 @@ def test_signal_batches_mix_sources_so_a_high_volume_feed_cannot_starve_the_othe
         add_signal(session, flood, f"flood-{index}")
     for index in range(2):
         add_signal(session, sparse, f"sparse-{index}")
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     run = start_weekly_run(session, settings)
     batch = get_signal_batch(session, run.id, settings, limit=10)
     assert len(batch) == 10
@@ -155,7 +155,7 @@ def test_labor_lane_catches_pain_phrasings_beyond_workflow_and_manual(session, s
     )
     session.add(item)
     session.commit()
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     run = start_weekly_run(session, settings)
     batch = get_signal_batch(session, run.id, settings, lane="labor")
     assert [entry["title"] for entry in batch] == [title]
@@ -182,14 +182,14 @@ def test_funding_lane_returns_grants_and_tenders_together(session, source) -> No
     add_signal(session, funding, "grant-1")
     add_signal(session, tenders, "tender-1")
     add_signal(session, source, "community-1")
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     run = start_weekly_run(session, settings)
     batch = get_signal_batch(session, run.id, settings, lane="funding")
     assert {item["source_name"] for item in batch} == {"Grants", "Tenders"}
 
 
 def test_deadlines_flow_from_signal_batches_to_saved_candidates(session, source) -> None:
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     deadline = datetime.now(timezone.utc) + timedelta(days=21)
     signal = add_signal(session, source, "tender")
     signal.deadline_at = deadline
@@ -208,7 +208,7 @@ def test_deadlines_flow_from_signal_batches_to_saved_candidates(session, source)
 
 def test_judge_score_delta_adjusts_the_stored_opportunity_score(session, source) -> None:
     signal = add_signal(session, source, "delta")
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     run = start_weekly_run(session, settings)
     opportunity = save_candidate(session, settings, run.id, candidate(signal, None))
     original = opportunity.score
@@ -223,7 +223,7 @@ def test_judge_score_delta_adjusts_the_stored_opportunity_score(session, source)
 def test_operator_context_reports_profile_and_per_source_feedback_track_record(session, source) -> None:
     signal = add_signal(session, source, "ctx")
     settings = Settings(
-        database_url="sqlite:////tmp/edgefinder-tests.db",
+        database_url="sqlite://",
         agent_token="test-agent-token",
         internal_token="test-internal-token",
         operator_profile="Solo full-stack developer in Oslo, 10 hours per week, no starting capital.",
@@ -239,7 +239,7 @@ def test_operator_context_reports_profile_and_per_source_feedback_track_record(s
 
 def test_candidate_referencing_unknown_prior_opportunity_is_a_domain_error(session, source) -> None:
     signal = add_signal(session, source, "update-ref")
-    settings = Settings(database_url="sqlite:////tmp/edgefinder-tests.db", agent_token="test-agent-token", internal_token="test-internal-token")
+    settings = Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
     run = start_weekly_run(session, settings)
     payload = candidate(signal, None).model_copy(update={"update_of_id": "does-not-exist"})
     with pytest.raises(DomainError, match="update_of_id"):

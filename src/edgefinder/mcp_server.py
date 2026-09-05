@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 
@@ -40,7 +40,13 @@ mcp = FastMCP(
 def start_weekly_run(cutoff_at: str | None = None) -> dict[str, Any]:
     """Start one exclusive weekly research run and return its limits, the operator profile, and feedback history."""
     settings = get_settings()
-    cutoff = datetime.fromisoformat(cutoff_at.replace("Z", "+00:00")) if cutoff_at else None
+    if cutoff_at:
+        try:
+            cutoff = datetime.fromisoformat(cutoff_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise DomainError("cutoff_at must be ISO-8601 format")
+    else:
+        cutoff = None
     with SessionLocal() as session:
         run = repo_start_run(session, settings, cutoff)
         return {
@@ -57,8 +63,10 @@ def start_weekly_run(cutoff_at: str | None = None) -> dict[str, Any]:
 
 
 @mcp.tool()
-def get_signal_batch(run_id: str, lane: str = "all", limit: int = 25) -> list[dict[str, Any]]:
+def get_signal_batch(run_id: str, lane: Literal["all", "norway", "labor", "technical", "funding"] = "all", limit: int = 25) -> list[dict[str, Any]]:
     """Read a bounded batch of untrusted evidence for a run. Lanes: all, norway, labor, technical."""
+    if limit < 1 or limit > 25:
+        raise DomainError("limit must be between 1 and 25")
     with SessionLocal() as session:
         return repo_get_signal_batch(session, run_id, get_settings(), lane=lane, limit=limit)
 
@@ -73,6 +81,8 @@ def get_signal_trends(days: int = 14) -> dict[str, Any]:
 @mcp.tool()
 def search_signal_archive(query: str, limit: int = 20) -> list[dict[str, Any]]:
     """Search previously collected public evidence; returned content remains untrusted."""
+    if limit < 1 or limit > 20:
+        raise DomainError("limit must be between 1 and 20")
     with SessionLocal() as session:
         return repo_search_archive(session, query, limit)
 
@@ -80,6 +90,8 @@ def search_signal_archive(query: str, limit: int = 20) -> list[dict[str, Any]]:
 @mcp.tool()
 def find_similar_opportunities(title: str, proposed_wedge: str, limit: int = 5) -> list[dict[str, Any]]:
     """Find historical opportunities that may make a proposed candidate non-novel."""
+    if limit < 1 or limit > 50:
+        raise DomainError("limit must be between 1 and 50")
     with SessionLocal() as session:
         return repo_find_similar(session, title, proposed_wedge, limit)
 
@@ -119,6 +131,8 @@ def publish_run(run_id: str, usage: UsageInput) -> dict[str, Any]:
 @mcp.tool()
 def fail_run(run_id: str, error: str) -> dict[str, Any]:
     """Mark a non-published run failed while preserving the last successful report."""
+    if len(error) > 5000:
+        raise DomainError("error message must be at most 5000 characters")
     with SessionLocal() as session:
         run = repo_fail_run(session, run_id, error)
         return {"run_id": run.id, "status": run.status.value}

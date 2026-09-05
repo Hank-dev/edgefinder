@@ -5,7 +5,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, delete, desc, func, or_, select
+from sqlalchemy import and_, delete, desc, func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from .config import Settings
@@ -51,6 +51,9 @@ def seed_sources(session: Session, definitions: list[dict[str, Any]]) -> None:
 
 
 def start_weekly_run(session: Session, settings: Settings, cutoff_at: datetime | None = None) -> ResearchRun:
+    # Use BEGIN IMMEDIATE to acquire a write lock before the check-then-insert,
+    # preventing two concurrent calls from both creating RUNNING runs.
+    session.execute(text("BEGIN IMMEDIATE"))
     active = session.scalar(
         select(ResearchRun).where(ResearchRun.status.in_([RunStatus.RUNNING, RunStatus.DRAFT]))
     )

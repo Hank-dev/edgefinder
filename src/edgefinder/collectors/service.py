@@ -90,6 +90,8 @@ async def collect_all(session: Session, settings: Settings, collectors: list[Bas
                 continue
             try:
                 signals = await collector.collect(client)
+                if len(signals) > settings.max_signals_per_run:
+                    signals = signals[: settings.max_signals_per_run]
                 for raw in signals:
                     outcome = _store_signal(session, source, raw)
                     setattr(summary, outcome, getattr(summary, outcome) + 1)
