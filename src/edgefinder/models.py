@@ -116,7 +116,10 @@ class ResearchRun(Base):
 
 class Opportunity(Base):
     __tablename__ = "opportunities"
-    __table_args__ = (Index("ix_opportunity_score", "score"),)
+    __table_args__ = (
+        Index("ix_opportunity_score", "score"),
+        UniqueConstraint("run_id", "canonical_key", name="uq_opportunity_run_key"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     run_id: Mapped[str] = mapped_column(ForeignKey("research_runs.id", ondelete="CASCADE"), index=True)

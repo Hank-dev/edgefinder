@@ -124,7 +124,12 @@ def build_talent_view(
     signals = session.execute(
         select(Signal, Source)
         .join(Source)
-        .where(Source.kind == "jobs", Source.enabled.is_(True), Signal.observed_at >= now - timedelta(days=WINDOW_DAYS))
+        .where(
+            Source.kind == "jobs",
+            Source.enabled.is_(True),
+            Signal.observed_at >= now - timedelta(days=WINDOW_DAYS),
+            ~Signal.suspicious_instructions,
+        )
         .order_by(desc(Signal.observed_at))
         .limit(MAX_SIGNALS)
     ).all()

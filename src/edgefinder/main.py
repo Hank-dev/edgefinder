@@ -78,9 +78,12 @@ async def domain_error_handler(_request: Request, exc: DomainError) -> JSONRespo
 
 @app.get("/health")
 def health(session: Session = Depends(get_session)) -> dict[str, Any]:
-    session.scalar(select(func.count(Source.id)))
-    latest = session.scalar(select(ResearchRun).order_by(desc(ResearchRun.started_at)).limit(1))
-    return {"status": "ok", "latest_run": latest.status.value if latest else None}
+    try:
+        session.scalar(select(func.count(Source.id)))
+        latest = session.scalar(select(ResearchRun).order_by(desc(ResearchRun.started_at)).limit(1))
+        return {"status": "ok", "latest_run": latest.status.value if latest else None}
+    except Exception:
+        return JSONResponse({"status": "degraded", "error": "database unavailable"}, status_code=503)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -141,7 +144,8 @@ def rankings(request: Request, session: Session = Depends(get_session)) -> HTMLR
 def archive(request: Request, q: str = Query(default="", max_length=200), session: Session = Depends(get_session)) -> HTMLResponse:
     statement = select(Opportunity).options(selectinload(Opportunity.run)).order_by(desc(Opportunity.created_at))
     if q.strip():
-        term = f"%{q.strip()}%"
+        q_escaped = q.strip().replace("%", r"\%").replace("_", r"\_")
+        term = f"%{q_escaped}%"
         statement = statement.where(or_(Opportunity.title.ilike(term), Opportunity.observed_pain.ilike(term), Opportunity.proposed_wedge.ilike(term)))
     opportunities = session.scalars(statement.limit(100)).all()
     return templates.TemplateResponse(request, "archive.html", template_context(request, opportunities=opportunities, query=q))

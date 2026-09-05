@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 os.environ.setdefault("ENVIRONMENT", "development")
-os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/edgefinder-tests.db")
+os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("AGENT_TOKEN", "test-agent-token")
 os.environ.setdefault("INTERNAL_TOKEN", "test-internal-token")
 os.environ.setdefault("DATA_DIR", "/tmp/edgefinder-test-data")
@@ -30,6 +30,12 @@ def clean_database():
 def session() -> Session:
     with SessionLocal() as db_session:
         yield db_session
+
+
+@pytest.fixture
+def settings() -> "Settings":
+    from edgefinder.config import Settings
+    return Settings(database_url="sqlite://", agent_token="test-agent-token", internal_token="test-internal-token")
 
 
 @pytest.fixture

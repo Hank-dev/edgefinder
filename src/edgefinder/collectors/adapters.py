@@ -32,7 +32,7 @@ def earliest_deadline(values: Any) -> datetime | None:
         except ValueError:
             continue
         parsed.append(result if result.tzinfo else result.replace(tzinfo=timezone.utc))
-    return min(parsed, default=None)
+    return min(parsed) if parsed else None
 
 
 def localized_text(value: Any) -> str:
@@ -59,7 +59,10 @@ class FeedCollector(BaseCollector):
         response = await client.get(self.url)
         if response.status_code == 429:
             # Unauthenticated feed hosts (notably Reddit) allow roughly one request per few seconds per IP.
-            retry_after = min(float(response.headers.get("Retry-After", 10) or 10), 15.0)
+            try:
+                retry_after = min(float(response.headers.get("Retry-After", 10) or 10), 15.0)
+            except (TypeError, ValueError):
+                retry_after = 10.0
             await asyncio.sleep(retry_after)
             response = await client.get(self.url)
         response.raise_for_status()
@@ -226,7 +229,7 @@ class NavJobsCollector(BaseCollector):
         response.raise_for_status()
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
         results = []
-        for item in response.json().get("items", []):
+        for item in response.json().get("items", [])[:500]:
             entry = item.get("_feed_entry") or {}
             if entry.get("status") != "ACTIVE":
                 continue
@@ -303,7 +306,7 @@ class BindeleddetCollector(BaseCollector):
         response.raise_for_status()
         now = datetime.now(timezone.utc)
         results: list[RawSignal] = []
-        for item in response.json():
+        for item in response.json()[:500]:
             if not item.get("is_visible", True):
                 continue
             deadline_text = str(item.get("deadline") or "")
@@ -353,7 +356,7 @@ class AbakusCollector(BaseCollector):
         response.raise_for_status()
         now = datetime.now(timezone.utc)
         results: list[RawSignal] = []
-        for item in response.json().get("results", []):
+        for item in response.json().get("results", [])[:500]:
             deadline = self.timestamp(item.get("deadline")) if item.get("deadline") else None
             if deadline and deadline < now:
                 continue
@@ -439,7 +442,13 @@ class TheHubCollector(BaseCollector):
         seen: set[str] = set()
         for page in range(1, 9):
             response = await client.get("https://thehub.io/jobs/location/norway", params={"page": page})
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError:
+                if response.status_code == 429:
+                    await asyncio.sleep(5)
+                    continue
+                raise
             pattern = re.compile(r'<span class="card-job-find-list__position">(.*?)</span>.*?<div class="bullet-inline-list[^>]*>\s*<span>(.*?)</span>\s*<span>(.*?)</span>.*?<a href="(/jobs/[^"]+)"', re.I | re.S)
             for raw_title, raw_employer, raw_location, path in pattern.findall(response.text):
                 identifier = path.rsplit("/", 1)[-1]
@@ -453,6 +462,7 @@ class TheHubCollector(BaseCollector):
                 url = f"https://thehub.io{path}"
                 excerpt = clean_text(f"{title}. {employer}. {location}. Norway startup job listed on The Hub.")
                 results.append(RawSignal(identifier, url, title, excerpt, datetime.now(timezone.utc), "en", "norway", {"employer": employer, "municipality": location, "source_board": "The Hub", "status": "ACTIVE", "job_type": job_type}))
+            await asyncio.sleep(0.5)
         return results[:300]
 
 
@@ -501,6 +511,77 @@ class Kode24Collector(BaseCollector):
                 )
             )
         return results[:200]
+
+
+class JobbsafariCollector(BaseCollector):
+    """Reads jobbsafari.no (Next.js __NEXT_DATA__) area listings for Oslo and Trondheim.
+
+    jobbsafari aggregates Norwegian job postings (many of which are also published on
+    finn.no, which has no scrapeable API). Run against the server-rendered __NEXT_DATA__
+    blob rather than finno HTML, so it stays robust to layout changes.
+    """
+
+    key = "jobbsafari"
+    _UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    AREAS = [
+        ("oslo", "https://jobbsafari.no/ledige-stillinger/omrade/oslo-3831577"),
+        ("trondheim", "https://jobbsafari.no/ledige-stillinger/omrade/trondheim-2771865"),
+    ]
+
+    async def collect(self, client: httpx.AsyncClient) -> list[RawSignal]:
+        results: list[RawSignal] = []
+        seen: set[str] = set()
+        for area, url in self.AREAS:
+            try:
+                response = await client.get(url, headers={"User-Agent": self._UA})
+                if response.status_code != 200:
+                    continue
+                match = re.search(
+                    r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>',
+                    response.text,
+                    re.S,
+                )
+                if not match:
+                    continue
+                data = json.loads(match.group(1))
+                entries = data["props"]["pageProps"]["jobEntries"]["results"]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                continue
+            for entry in entries:
+                pk = entry.get("pk")
+                slug = entry.get("slug")
+                title = clean_text(entry.get("title") or "", limit=500)
+                if not pk or not title:
+                    continue
+                identifier = f"jobbsafari-{pk}"
+                if identifier in seen:
+                    continue
+                seen.add(identifier)
+                company = (entry.get("company") or {}).get("name") or "ukjent arbeidsgiver"
+                locations = entry.get("locations") or []
+                municipality = ""
+                if locations:
+                    first = locations[0] or {}
+                    municipality = clean_text(
+                        (first.get("area") or {}).get("name") or first.get("name") or "",
+                        limit=200,
+                    ) or "Norge"
+                observed = self.timestamp(entry.get("startDate")) if entry.get("startDate") else datetime.now(timezone.utc)
+                deadline = self.timestamp(entry.get("endDate")) if entry.get("endDate") else None
+                results.append(
+                    RawSignal(
+                        identifier,
+                        f"https://jobbsafari.no/ledige-stillinger/{slug}",
+                        title,
+                        clean_text(f"{title} hos {company} i {municipality}. Stilling fra jobbsafari.no."),
+                        observed,
+                        "no",
+                        "norway",
+                        {"employer": clean_text(company, limit=300), "municipality": municipality, "source_board": "jobbsafari", "area": area, "status": "ACTIVE"},
+                        deadline_at=deadline,
+                    )
+                )
+        return results[:400]
 
 
 class DoffinCollector(BaseCollector):

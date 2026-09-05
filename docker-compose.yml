@@ -8,6 +8,7 @@ services:
     volumes:
       - edgefinder_data:/app/data
       - edgefinder_backups:/app/backups
+      - ./profile.yaml:/app/profile.yaml:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=3)"]
       interval: 30s
