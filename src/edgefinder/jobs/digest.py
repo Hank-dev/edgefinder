@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -26,7 +27,12 @@ def format_digest(rows: list[JobRow]) -> str:
     for row in rows:
         deadline = f" · {row.days_left}d left" if row.days_left is not None else ""
         location = f" ({row.municipality})" if row.municipality else ""
-        lines.append(f"\n{row.relevance:.0f} · {row.title} — {row.employer}{location}{deadline}\n{row.url}")
+        # Escape scraped content to prevent injection in Telegram/rendering
+        title = html.escape(row.title)
+        employer = html.escape(row.employer)
+        municipality = html.escape(row.municipality) if row.municipality else ""
+        location = f" ({municipality})" if municipality else ""
+        lines.append(f"\n{row.relevance:.0f} · {title} — {employer}{location}{deadline}\n{row.url}")
     return "\n".join(lines)
 
 
